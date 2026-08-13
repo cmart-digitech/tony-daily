@@ -46,10 +46,16 @@ export function factsApplicable(article: ArticleRow): boolean {
   return CATEGORIES_WITH_FACTS.has(article.category);
 }
 
-/** Strip accidental code fences before parsing. */
+/**
+ * Models wrap JSON in fences or prose despite instructions; parse the first
+ * complete object found rather than requiring a perfectly bare response.
+ */
 function parseModelJson(raw: string): unknown {
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-  return JSON.parse(cleaned);
+  const cleaned = raw.replace(/```(?:json)?/gi, "").trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end <= start) throw new Error("no JSON object in response");
+  return JSON.parse(cleaned.slice(start, end + 1));
 }
 
 /** A typed field is kept only if it appears verbatim in the source text. */
