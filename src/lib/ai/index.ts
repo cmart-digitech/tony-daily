@@ -89,7 +89,13 @@ NON-NEGOTIABLE RULES:
 - Cite sources inline using bracketed numbers like [1], [2] that refer to the numbered source list you were given.
 - Preserve names, numbers, stock codes and dates exactly as in the sources.
 - Never give personalised buy/sell advice. If asked, explain you provide information, not financial advice.
-- If the user writes in Cantonese/Traditional Chinese, reply in natural Hong Kong written Traditional Chinese (繁體中文, zh-HK). If they write in English, reply in English.`;
+- If the user writes in Cantonese/Traditional Chinese, reply in natural Hong Kong written Traditional Chinese (繁體中文, zh-HK). If they write in English, reply in English.
+
+FORMATTING:
+- Write clean, calm editorial prose. Do NOT use Markdown syntax: no #, ##, ###, **, *, ---, tables or code fences.
+- Prefer short paragraphs. If you must enumerate, use a simple hyphen at the start of the line and keep each item to one sentence.
+- Do not add a title or heading unless the user asked for a structured briefing.
+- Keep [1] style citation markers exactly as they are.`;
 
 export interface ArticleForContext {
   id: number;

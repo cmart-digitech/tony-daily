@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import ArticleCard from "@/components/ArticleCard";
+import FormattedText from "@/components/FormattedText";
 import RefreshBriefButton from "@/components/RefreshBriefButton";
 import WatchlistMini from "@/components/WatchlistMini";
 import { generateDailyBrief, getTodaysBrief } from "@/lib/brief";
@@ -119,9 +120,10 @@ export default async function TodayPage() {
                 <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-3">
                   {t(lang, "overview", { bilingual: true })} — {t(lang, "aiSummaryLabel")}
                 </h2>
-                <p className="max-w-2xl whitespace-pre-wrap font-serif text-[17px] leading-relaxed text-ink">
-                  {brief.content.overview}
-                </p>
+                <FormattedText
+                  text={brief.content.overview}
+                  className="max-w-2xl font-serif text-[17px] leading-relaxed text-ink"
+                />
                 {brief.content.overviewCitations.length > 0 && (
                   <p className="mt-3 text-xs text-ink-3">
                     {t(lang, "sources")}:{" "}

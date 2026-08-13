@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import FormattedText from "./FormattedText";
 
 type Level = "30s" | "2min" | "deep";
 
@@ -101,9 +102,10 @@ export default function SummaryPanel({
           <p className="mb-2 text-[10px] uppercase tracking-wider text-ink-3">
             {labels.aiLabel}
           </p>
-          <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink">
-            {summaries[level]}
-          </div>
+          <FormattedText
+            text={summaries[level]!}
+            className="text-[15px] leading-relaxed text-ink"
+          />
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import FormattedText from "./FormattedText";
 
 interface Citation {
   n: number;
@@ -112,9 +113,10 @@ export default function ChatPanel({
             </div>
           ) : (
             <div key={i} className="max-w-[95%] sm:max-w-[85%]">
-              <div className="whitespace-pre-wrap border-l-2 border-accent pl-4 text-[15px] leading-relaxed text-ink">
-                {m.content}
-              </div>
+              <FormattedText
+                text={m.content}
+                className="border-l-2 border-accent pl-4 text-[15px] leading-relaxed text-ink"
+              />
               {m.citations && m.citations.length > 0 && (
                 <div className="mt-3 pl-4">
                   <p className="mb-1 text-[10px] uppercase tracking-wider text-ink-3">
