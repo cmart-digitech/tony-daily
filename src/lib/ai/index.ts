@@ -148,6 +148,15 @@ async function complete(system: string, user: string, maxTokens = 1200): Promise
   });
 }
 
+/** Single-turn completion for sibling AI modules (facts, translation). */
+export async function completeRaw(
+  system: string,
+  user: string,
+  maxTokens = 1200,
+): Promise<string> {
+  return complete(system, user, maxTokens);
+}
+
 /** Summarise one article (or a cluster of sources for the same story). Cached. */
 export async function summarizeArticle(options: {
   contentHash: string;

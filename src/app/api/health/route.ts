@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb, schema } from "@/lib/db";
 import { aiModelId, aiProviderLabel, isAiConfigured } from "@/lib/ai";
 import { authEnabled } from "@/lib/auth";
+import { telegramConfigured } from "@/lib/notify/telegram";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export async function GET() {
     aiProvider: aiProviderLabel(),
     aiModel: isAiConfigured() ? aiModelId() : null,
     marketDataConfigured: Boolean(process.env.TWELVE_DATA_API_KEY),
+    telegramConfigured: telegramConfigured(),
     timezone: process.env.APP_TIMEZONE ?? "Asia/Hong_Kong",
   };
 

@@ -165,9 +165,19 @@ idle only delays a page load; cron-driven ingestion still needs an external
 pinger. Self-hosting on an always-on machine is the one case where you can
 skip Turso entirely and keep the local SQLite file.
 
+## Access control
+
+Set `DASHBOARD_PASSWORD` to enable the login gate: an HMAC-signed expiring
+session cookie checked in middleware on every page and API. `/login`,
+`/api/cron/*` (own bearer auth) and `/api/health` stay reachable. Without a
+password the app is **open** and `/api/health` reports `authEnabled: false`
+— a misconfigured deployment fails open and says so, rather than locking the
+owner out or pretending to be protected.
+
 ## News ingestion
 
-- 18 RSS sources (HK Government News EN/繁 incl. infrastructure + finance
+- 21 RSS sources (HKEX News Releases + Regulatory Announcements, SFC Press
+  Releases, HK Government News EN/繁 incl. infrastructure + finance
   desks, RTHK EN/繁 local/finance/Greater China/world, SCMP Hong Kong /
   Business / Property, BBC Business, Dezeen, ArchDaily, designboom).
   **Every feed URL was verified live before being committed** — see
@@ -241,6 +251,29 @@ choice and `AI_MODEL` overrides the default model. `AI_PROVIDER=custom` with
 Summaries are cached per `provider:model`, so switching models re-generates
 rather than serving another model's text. `/api/health` reports the active
 provider and model.
+
+Beyond summaries and chat, the AI also powers (all cached, all bounded per
+ingest run for free-tier rate limits):
+
+- **Structured project facts** (brief §57–58): property/architecture stories
+  get typed PROJECT / LOCATION / DEVELOPER / ARCHITECT / LAND USE / STATUS
+  fields plus KEY FACTS. Extraction is validated: a typed field is stored
+  only if its value appears **verbatim** in the source text — paraphrased or
+  invented values are dropped, never shown.
+- **Headline translation**: `translatedTitle` carries an AI-assisted
+  rendering in the other language, always labelled, never attributed to the
+  publisher, original headline untouched.
+- **Cross-language clustering**: the EN and 繁 reports of one event are
+  linked by comparing English forms (original or translated) at a stricter
+  threshold than same-language pairs, with entity corroboration.
+
+Search uses an **FTS5 index** (bm25-ranked) for Latin-script queries, with
+the calibrated CJK bigram scan retained for Chinese queries and as the
+fallback when FTS5 is unavailable.
+
+The Daily Brief can additionally be **delivered by Telegram** each morning:
+set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (see `.env.example`) and the
+daily cron sends the same real headlines with source links.
 
 Grounding rules are provider-independent (enforced in the system prompt and
 by construction):

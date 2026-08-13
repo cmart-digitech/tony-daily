@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateDailyBrief } from "@/lib/brief";
 import { runIngest } from "@/lib/ingest";
+import { sendBriefToTelegram } from "@/lib/notify/telegram";
 import { authorizeCron } from "../auth";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,15 @@ export async function GET(req: NextRequest) {
   try {
     await runIngest({ force: false });
     const brief = await generateDailyBrief();
-    return NextResponse.json({ ok: true, dateKey: brief.dateKey });
+
+    // Optional morning delivery — configured deployments only.
+    const tz = process.env.APP_TIMEZONE ?? "Asia/Hong_Kong";
+    const dateLabel = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz, weekday: "long", day: "numeric", month: "long",
+    }).format(new Date());
+    const delivery = await sendBriefToTelegram(brief.content, dateLabel);
+
+    return NextResponse.json({ ok: true, dateKey: brief.dateKey, telegram: delivery });
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "Brief generation failed." },

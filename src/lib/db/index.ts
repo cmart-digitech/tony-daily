@@ -59,6 +59,13 @@ function createHandle(): DbHandle {
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("busy_timeout = 5000");
   sqlite.exec(MIGRATION_SQL);
+  for (const statement of ADDITIVE_MIGRATIONS) {
+    try {
+      sqlite.exec(statement);
+    } catch {
+      /* column already present */
+    }
+  }
   const db = drizzleSqlite(sqlite, { schema }) as unknown as AppDb;
   return { db, kind: "sqlite", client: null, ready: Promise.resolve() };
 }
@@ -106,12 +113,30 @@ export async function runBatch(
  * probe tells us the schema is already there; the full migration runs only
  * when it is not.
  */
+/**
+ * Columns added to existing tables after first release. CREATE TABLE IF NOT
+ * EXISTS cannot add these to databases that already exist, so each is
+ * attempted individually and "duplicate column" failures are expected.
+ */
+const ADDITIVE_MIGRATIONS = [
+  "ALTER TABLE articles ADD COLUMN translated_title TEXT",
+];
+
 async function ensureSchema(client: Client): Promise<void> {
   try {
-    await client.execute("SELECT 1 FROM user_preferences LIMIT 1");
-    return; // schema present
+    // Probe the NEWEST table in the schema: if it exists, everything before
+    // it does too. Probing an old table would skip later additions on
+    // databases created before them.
+    await client.execute("SELECT 1 FROM article_facts LIMIT 1");
   } catch {
     await client.executeMultiple(MIGRATION_SQL);
+  }
+  for (const statement of ADDITIVE_MIGRATIONS) {
+    try {
+      await client.execute(statement);
+    } catch {
+      /* column already present */
+    }
   }
 }
 
@@ -131,6 +156,7 @@ const MIGRATION_SQL = `
       canonical_url TEXT NOT NULL,
       original_title TEXT NOT NULL,
       original_language TEXT NOT NULL,
+      translated_title TEXT,
       excerpt TEXT,
       author TEXT,
       published_at INTEGER,
@@ -231,6 +257,18 @@ const MIGRATION_SQL = `
       items_new INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS sync_source_idx ON sync_logs (source_id);
+    CREATE TABLE IF NOT EXISTS article_facts (
+      article_id INTEGER PRIMARY KEY,
+      project TEXT,
+      location TEXT,
+      developer TEXT,
+      architect TEXT,
+      land_use TEXT,
+      status TEXT,
+      key_facts TEXT,
+      model TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS ai_summaries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       content_hash TEXT NOT NULL,

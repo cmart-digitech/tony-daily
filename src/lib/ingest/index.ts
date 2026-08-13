@@ -5,6 +5,8 @@ import { SOURCES, type SourceConfig } from "@/lib/sources/registry";
 import { classifyCategory, classifyRegion } from "./classify";
 import { extractEntities } from "./entities";
 import { fetchOgImages } from "./images";
+import { backfillIndex, indexArticles } from "@/lib/search/fts";
+import { translateRecentHeadlines } from "@/lib/ai/translate";
 import {
   buildIdf,
   canonicalizeUrl,
@@ -30,6 +32,13 @@ const RESCORE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
  */
 const CLUSTER_SIMILARITY = 0.62;
 const CLUSTER_SIMILARITY_WITH_ENTITY = 0.5;
+/**
+ * Cross-language pairs are compared via AI-translated titles, which adds a
+ * translation-noise step — so the bar is higher, and higher still without a
+ * shared entity to corroborate the match.
+ */
+const CROSS_LANG_SIMILARITY = 0.72;
+const CROSS_LANG_SIMILARITY_WITH_ENTITY = 0.58;
 /** Stub headlines ("Business Daily") carry too little signal to match on. */
 const MIN_TITLE_TOKENS = 3;
 
@@ -229,6 +238,20 @@ async function ingestSource(source: SourceConfig): Promise<IngestResult> {
           .values(entityValues.slice(i, i + 100))
           .run();
       }
+
+      // Keep the full-text index in step with the new rows.
+      await indexArticles(
+        fresh.flatMap((n) => {
+          const articleId = idByUrl.get(n.canonicalUrl);
+          if (!articleId) return [];
+          return [{
+            id: articleId,
+            title: n.title,
+            excerpt: n.excerpt || null,
+            entities: n.entities.map((e) => e.entity),
+          }];
+        }),
+      );
     }
 
     await db
@@ -286,6 +309,8 @@ export async function runIngest(options?: { force?: boolean }): Promise<IngestRe
   }
 
   await enrichMissingImages();
+  await backfillIndex(); // catch up any articles that predate the FTS index
+  await translateRecentHeadlines(); // bounded; also enables cross-language clustering
   await reclassifyRecentArticles();
   await clusterRecentArticles();
   await applyCorroboration();
@@ -429,6 +454,13 @@ export async function clusterRecentArticles() {
 
   // IDF over the current window so common local vocabulary is discounted.
   const idf = buildIdf(recent.map((a) => a.originalTitle));
+  // English forms enable cross-language comparison: an article's own title
+  // when English, its AI translation when Chinese (may be absent).
+  const englishForm = (a: (typeof recent)[number]) =>
+    a.originalLanguage === "en" ? a.originalTitle : a.translatedTitle;
+  const idfEn = buildIdf(
+    recent.map(englishForm).filter((t): t is string => Boolean(t)),
+  );
   const tokenCount = new Map(recent.map((a) => [a.id, new Set(tokenize(a.originalTitle)).size]));
 
   for (const article of unclustered) {
@@ -437,19 +469,32 @@ export async function clusterRecentArticles() {
       if (other.id === article.id) continue;
       // Same-source items are usually distinct stories, not corroboration.
       if (other.sourceId === article.sourceId) continue;
-      // Headlines in different languages are not compared (see README).
-      if (other.originalLanguage !== article.originalLanguage) continue;
       if ((tokenCount.get(other.id) ?? 0) < MIN_TITLE_TOKENS) continue;
 
-      const { score, sharedTokens } = weightedSimilarity(
-        article.originalTitle,
-        other.originalTitle,
-        idf,
-      );
+      const sameLanguage = other.originalLanguage === article.originalLanguage;
+      let score: number;
+      let sharedTokens: number;
+      let threshold: number;
+      if (sameLanguage) {
+        ({ score, sharedTokens } = weightedSimilarity(
+          article.originalTitle,
+          other.originalTitle,
+          idf,
+        ));
+        threshold = sharesEntity(article.id, other.id)
+          ? CLUSTER_SIMILARITY_WITH_ENTITY
+          : CLUSTER_SIMILARITY;
+      } else {
+        // Cross-language: only comparable once both sides have English forms.
+        const a = englishForm(article);
+        const b = englishForm(other);
+        if (!a || !b) continue;
+        ({ score, sharedTokens } = weightedSimilarity(a, b, idfEn));
+        threshold = sharesEntity(article.id, other.id)
+          ? CROSS_LANG_SIMILARITY_WITH_ENTITY
+          : CROSS_LANG_SIMILARITY;
+      }
       if (sharedTokens < MIN_SHARED_TOKENS) continue;
-      const threshold = sharesEntity(article.id, other.id)
-        ? CLUSTER_SIMILARITY_WITH_ENTITY
-        : CLUSTER_SIMILARITY;
       if (score < threshold) continue;
 
       let assigned: number;

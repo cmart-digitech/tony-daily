@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ArticleCard from "@/components/ArticleCard";
+import ArticleFactsPanel from "@/components/ArticleFactsPanel";
 import SaveButton from "@/components/SaveButton";
 import SummaryPanel from "@/components/SummaryPanel";
 import VerificationBadge from "@/components/VerificationBadge";
@@ -79,6 +80,14 @@ export default async function ArticlePage({
       <h1 className="font-serif text-3xl leading-tight text-ink sm:text-4xl">
         {article.originalTitle}
       </h1>
+      {article.translatedTitle && (
+        <p className="mt-2 font-serif text-xl leading-snug text-ink-2">
+          {article.translatedTitle}{" "}
+          <span className="ml-1 align-middle font-sans text-[10px] uppercase tracking-wider text-ink-3">
+            {t(lang, "translationLabel")}
+          </span>
+        </p>
+      )}
 
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line pb-5 text-sm text-ink-2">
         <span className="font-medium text-ink">{source?.name ?? article.sourceId}</span>
@@ -142,6 +151,23 @@ export default async function ArticlePage({
           }}
         />
       </section>
+
+      {isVisual && (
+        <ArticleFactsPanel
+          articleId={article.id}
+          labels={{
+            heading: zh === "zh" ? "項目資料" : "Project details",
+            keyFacts: zh === "zh" ? "重點" : "Key facts",
+            aiLabel: t(lang, "aiSummaryLabel"),
+            project: zh === "zh" ? "項目" : "Project",
+            location: zh === "zh" ? "位置" : "Location",
+            developer: zh === "zh" ? "發展商" : "Developer",
+            architect: zh === "zh" ? "建築師" : "Architect",
+            landUse: zh === "zh" ? "用途" : "Land use",
+            status: zh === "zh" ? "狀態" : "Status",
+          }}
+        />
+      )}
 
       {(companies.length > 0 || tickers.length > 0 || locations.length > 0 || departments.length > 0) && (
         <section className="mt-10 border-t border-line pt-6">

@@ -29,6 +29,8 @@ export const articles = sqliteTable(
     canonicalUrl: text("canonical_url").notNull(),
     originalTitle: text("original_title").notNull(),
     originalLanguage: text("original_language").notNull(), // en | zh-HK
+    /** AI-assisted rendering in the other language; never shown as the publisher's own. */
+    translatedTitle: text("translated_title"),
     excerpt: text("excerpt"),
     author: text("author"),
     publishedAt: integer("published_at"), // epoch ms; null if feed omits it
@@ -167,6 +169,25 @@ export const syncLogs = sqliteTable(
   },
   (t) => [index("sync_source_idx").on(t.sourceId)],
 );
+
+/**
+ * Structured facts for built-environment stories (brief §57–58). Every field
+ * is nullable and filled ONLY when the source text states it explicitly —
+ * extraction validates that field values literally appear in the source, so
+ * nothing here is ever inferred or estimated.
+ */
+export const articleFacts = sqliteTable("article_facts", {
+  articleId: integer("article_id").primaryKey(),
+  project: text("project"),
+  location: text("location"),
+  developer: text("developer"),
+  architect: text("architect"),
+  landUse: text("land_use"),
+  status: text("status"),
+  keyFacts: text("key_facts"), // JSON string[] — AI-assisted, labelled in UI
+  model: text("model").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
 
 /** Cache of AI-generated summaries keyed by content hash + language + level + model. */
 export const aiSummaries = sqliteTable(

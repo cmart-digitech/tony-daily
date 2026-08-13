@@ -28,6 +28,12 @@ export default function ArticleCard({
     ? timeAgo(article.publishedAt, lang === "zh" ? "zh" : "en")
     : timeAgo(article.fetchedAt, lang === "zh" ? "zh" : "en");
   const href = `/article/${article.id}`;
+  // Show the AI-assisted translation when the reader's language differs
+  // from the headline's (always in bilingual mode). Labelled, never silent.
+  const showTranslation =
+    lang === "both" ||
+    (lang === "zh" && article.originalLanguage !== "zh-HK") ||
+    (lang === "en" && article.originalLanguage !== "en");
 
   const meta = (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
@@ -67,6 +73,14 @@ export default function ArticleCard({
           <h2 className="font-serif text-2xl leading-snug text-ink group-hover:text-accent sm:text-3xl">
             {article.originalTitle}
           </h2>
+          {showTranslation && article.translatedTitle && (
+            <p className="mt-1.5 font-serif text-lg leading-snug text-ink-2">
+              {article.translatedTitle}
+              <span className="ml-1.5 align-middle font-sans text-[9px] uppercase tracking-wider text-ink-3">
+                AI 譯
+              </span>
+            </p>
+          )}
         </Link>
         {article.excerpt && (
           <p className="mt-3 line-clamp-3 max-w-2xl text-sm leading-relaxed text-ink-2">

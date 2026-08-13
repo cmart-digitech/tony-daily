@@ -1,6 +1,7 @@
 import { desc, gt, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { tokenize } from "@/lib/ingest/text";
+import { searchIndex, toMatchExpression } from "@/lib/search/fts";
 import type { ArticleForContext } from "@/lib/ai";
 
 const SEARCH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -25,6 +26,30 @@ export function toContext(a: ArticleRow): ArticleForContext {
  * strongest matches — or, for broad queries, the top-ranked recent stories.
  */
 export async function searchArticles(query: string, limit = 12): Promise<ArticleRow[]> {
+  // FTS5 path for Latin-script queries: indexed, bm25-ranked, scales past
+  // the in-memory scan. CJK queries and FTS failures use the bigram scan.
+  const match = toMatchExpression(query);
+  if (match) {
+    const ids = await searchIndex(match, limit * 3);
+    if (ids.length > 0) {
+      const db = await getDb();
+      const rows = await db
+        .select()
+        .from(schema.articles)
+        .where(inArray(schema.articles.id, ids))
+        .all();
+      const order = new Map(ids.map((id, i) => [id, i]));
+      const ranked = rows
+        .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+        .slice(0, limit);
+      if (ranked.length > 0) return ranked;
+    }
+  }
+  return searchArticlesLexical(query, limit);
+}
+
+/** The original in-memory scan — CJK-aware, and the fallback path. */
+async function searchArticlesLexical(query: string, limit = 12): Promise<ArticleRow[]> {
   const db = await getDb();
   const cutoff = Date.now() - SEARCH_WINDOW_MS;
   const recent = await db
