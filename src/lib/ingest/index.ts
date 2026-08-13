@@ -1,9 +1,10 @@
 import Parser from "rss-parser";
-import { desc, eq, gt, inArray, isNotNull, and } from "drizzle-orm";
+import { desc, eq, gt, inArray, isNotNull, isNull, and } from "drizzle-orm";
 import { getDb, runBatch, schema } from "@/lib/db";
 import { SOURCES, type SourceConfig } from "@/lib/sources/registry";
 import { classifyCategory, classifyRegion } from "./classify";
 import { extractEntities } from "./entities";
+import { fetchOgImages } from "./images";
 import {
   buildIdf,
   canonicalizeUrl,
@@ -31,6 +32,14 @@ const CLUSTER_SIMILARITY = 0.62;
 const CLUSTER_SIMILARITY_WITH_ENTITY = 0.5;
 /** Stub headlines ("Business Daily") carry too little signal to match on. */
 const MIN_TITLE_TOKENS = 3;
+
+/**
+ * Some publishers omit images from RSS but declare an og:image on the page.
+ * Each run tops up a bounded number of image-less articles, so the backlog
+ * clears over time without a long request or a burst of traffic to any one
+ * publisher.
+ */
+const OG_ENRICH_PER_RUN = 60;
 
 type FeedItem = {
   title?: string;
@@ -276,10 +285,47 @@ export async function runIngest(options?: { force?: boolean }): Promise<IngestRe
     results.push(...(await Promise.all(chunk.map((s) => ingestSource(s)))));
   }
 
+  await enrichMissingImages();
+  await reclassifyRecentArticles();
   await clusterRecentArticles();
   await applyCorroboration();
   await rescoreRecentArticles();
   return results;
+}
+
+/**
+ * Fill in missing images from publishers' own Open Graph previews. Newest
+ * first, so what Tony is most likely to see is fixed soonest.
+ */
+export async function enrichMissingImages(limit = OG_ENRICH_PER_RUN): Promise<number> {
+  const db = await getDb();
+  const cutoff = Date.now() - RESCORE_WINDOW_MS;
+  const pending = await db
+    .select({
+      id: schema.articles.id,
+      url: schema.articles.canonicalUrl,
+      sourceId: schema.articles.sourceId,
+    })
+    .from(schema.articles)
+    .where(and(gt(schema.articles.fetchedAt, cutoff), isNull(schema.articles.imageUrl)))
+    .orderBy(desc(schema.articles.fetchedAt))
+    .limit(limit)
+    .all();
+  if (pending.length === 0) return 0;
+
+  const images = await fetchOgImages(pending.map((p) => ({ id: p.id, url: p.url })));
+  const sourceName = new Map(SOURCES.map((s) => [s.id, s.name]));
+
+  for (const p of pending) {
+    const image = images.get(p.id);
+    if (!image) continue;
+    await db
+      .update(schema.articles)
+      .set({ imageUrl: image, imageAttribution: sourceName.get(p.sourceId) ?? p.sourceId })
+      .where(eq(schema.articles.id, p.id))
+      .run();
+  }
+  return images.size;
 }
 
 async function upsertSourceState(
@@ -304,6 +350,44 @@ async function upsertSourceState(
       .values({ sourceId, enabled: true, ...patch })
       .run();
   }
+}
+
+/**
+ * Re-apply classification to already-stored articles.
+ *
+ * Categories are written once at ingest time, so a rule change would
+ * otherwise only affect new items and leave the sections wrong for days —
+ * a road accident kept leading the Architecture page after the incident
+ * guard was added. Classification is pure string matching, so this is cheap;
+ * only rows whose category actually changes are written back.
+ */
+export async function reclassifyRecentArticles(): Promise<number> {
+  const db = await getDb();
+  const cutoff = Date.now() - RESCORE_WINDOW_MS;
+  const recent = await db
+    .select()
+    .from(schema.articles)
+    .where(gt(schema.articles.fetchedAt, cutoff))
+    .all();
+  if (recent.length === 0) return 0;
+
+  const sourceById = new Map(SOURCES.map((s) => [s.id, s]));
+  let changed = 0;
+  for (const a of recent) {
+    const source = sourceById.get(a.sourceId);
+    if (!source) continue;
+    const text = `${a.originalTitle} ${a.excerpt ?? ""}`;
+    const category = classifyCategory(text, source);
+    const region = classifyRegion(text, source);
+    if (category === a.category && region === a.region) continue;
+    await db
+      .update(schema.articles)
+      .set({ category, region })
+      .where(eq(schema.articles.id, a.id))
+      .run();
+    changed++;
+  }
+  return changed;
 }
 
 /**

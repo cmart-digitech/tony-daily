@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { ArticleRow } from "@/lib/retrieval";
 import { getSource } from "@/lib/sources/registry";
 import { timeAgo } from "@/lib/format";
-import { t, type UiLanguage } from "@/lib/i18n";
+import { type UiLanguage } from "@/lib/i18n";
+import ArticlePlaceholder from "./ArticlePlaceholder";
 import VerificationBadge from "./VerificationBadge";
 
 export type CardVariant = "hero" | "visual" | "standard" | "compact";
@@ -55,9 +56,13 @@ export default function ArticleCard({
               )}
             </figure>
           ) : (
-            <div className="mb-4 flex aspect-video w-full items-center justify-center border border-line bg-subtle">
-              <span className="font-serif text-4xl text-ink-3">{source?.name ?? "—"}</span>
-            </div>
+            <ArticlePlaceholder
+              seed={article.id}
+              sourceName={source?.name ?? article.sourceId}
+              category={article.category}
+              lang={lang === "zh" ? "zh" : "en"}
+              className="mb-4 aspect-video w-full"
+            />
           )}
           <h2 className="font-serif text-2xl leading-snug text-ink group-hover:text-accent sm:text-3xl">
             {article.originalTitle}
@@ -87,11 +92,13 @@ export default function ArticleCard({
               />
             </figure>
           ) : (
-            <div className="mb-3 flex aspect-[4/3] w-full items-center justify-center border border-line bg-subtle">
-              <span className="px-4 text-center font-serif text-lg text-ink-3">
-                {t(lang, "imageUnavailable")}
-              </span>
-            </div>
+            <ArticlePlaceholder
+              seed={article.id}
+              sourceName={source?.name ?? article.sourceId}
+              category={article.category}
+              lang={lang === "zh" ? "zh" : "en"}
+              className="mb-3 aspect-[4/3] w-full"
+            />
           )}
           <h3 className="font-serif text-lg leading-snug text-ink group-hover:text-accent">
             {article.originalTitle}
