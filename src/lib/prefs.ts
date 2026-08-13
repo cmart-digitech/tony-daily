@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 
@@ -59,7 +60,11 @@ export const DEFAULT_PREFERENCES: Preferences = {
   },
 };
 
-export async function getPreferences(): Promise<Preferences> {
+/**
+ * Preferences are read by the layout and again by most pages; `cache`
+ * collapses that into a single query per request.
+ */
+export const getPreferences = cache(async function getPreferences(): Promise<Preferences> {
   const db = await getDb();
   const row = await db
     .select()
@@ -78,7 +83,7 @@ export async function getPreferences(): Promise<Preferences> {
   } catch {
     return DEFAULT_PREFERENCES;
   }
-}
+});
 
 export async function savePreferences(prefs: Partial<Preferences>): Promise<Preferences> {
   const db = await getDb();

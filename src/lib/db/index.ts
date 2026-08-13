@@ -39,12 +39,7 @@ function createHandle(): DbHandle {
       authToken: process.env.TURSO_AUTH_TOKEN,
     });
     const db = drizzleLibsql(client, { schema });
-    return {
-      db,
-      kind: "libsql",
-      client,
-      ready: client.executeMultiple(MIGRATION_SQL),
-    };
+    return { db, kind: "libsql", client, ready: ensureSchema(client) };
   }
   const resolved = path.resolve(/* turbopackIgnore: true */ process.cwd(), DB_PATH);
   fs.mkdirSync(path.dirname(resolved), { recursive: true });
@@ -102,6 +97,21 @@ export async function runBatch(
     }
   } else {
     for (const s of statements) await s.run();
+  }
+}
+
+/**
+ * Serverless instances start cold often, and replaying ~30 DDL statements
+ * against a remote database on every cold start is expensive. One cheap
+ * probe tells us the schema is already there; the full migration runs only
+ * when it is not.
+ */
+async function ensureSchema(client: Client): Promise<void> {
+  try {
+    await client.execute("SELECT 1 FROM user_preferences LIMIT 1");
+    return; // schema present
+  } catch {
+    await client.executeMultiple(MIGRATION_SQL);
   }
 }
 

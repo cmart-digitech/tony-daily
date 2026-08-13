@@ -34,14 +34,20 @@ export default async function ArticlePage({
   const article = await getArticle(id);
   if (!article) notFound();
 
-  const prefs = await getPreferences();
+  const source = getSource(article.sourceId);
+  // These four are independent; run them concurrently so the page cost is
+  // one round trip's latency rather than four.
+  const [prefs, allMembers, entities, related, savedIds] = await Promise.all([
+    getPreferences(),
+    clusterMembers(article),
+    getEntities(article.id),
+    relatedArticles(article, 6),
+    savedArticleIds(),
+  ]);
   const lang = prefs.language;
   const zh = lang === "zh" ? "zh" : "en";
-  const source = getSource(article.sourceId);
-  const members = (await clusterMembers(article)).filter((m) => m.id !== article.id);
-  const entities = await getEntities(article.id);
-  const related = await relatedArticles(article, 6);
-  const saved = (await savedArticleIds()).has(article.id);
+  const members = allMembers.filter((m) => m.id !== article.id);
+  const saved = savedIds.has(article.id);
   const cat = CATEGORY_LABELS[article.category] ?? CATEGORY_LABELS.general;
   const isVisual = article.category === "architecture" || article.category === "property";
 

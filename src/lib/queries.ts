@@ -1,19 +1,46 @@
+import { cache } from "react";
 import { desc, eq, gt, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { dedupeByCluster, type ArticleRow } from "@/lib/retrieval";
 
 const WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+/** One page render never needs more than this many candidates. */
+const POOL_SIZE = 400;
 
-export async function recentArticles(limit = 300): Promise<ArticleRow[]> {
+/**
+ * The recent-article pool, fetched at most once per request.
+ *
+ * Pages previously issued this query several times over (top stories, the
+ * hero, each section, related items). With a remote database each repeat
+ * was a full network round trip, so the render cost scaled with the number
+ * of modules on the page. React's `cache` dedupes it within one render.
+ */
+const articlePool = cache(async (): Promise<ArticleRow[]> => {
   const db = await getDb();
   return db
     .select()
     .from(schema.articles)
     .where(gt(schema.articles.fetchedAt, Date.now() - WINDOW_MS))
     .orderBy(desc(schema.articles.score))
-    .limit(limit)
+    .limit(POOL_SIZE)
     .all();
+});
+
+export async function recentArticles(limit = 300): Promise<ArticleRow[]> {
+  return (await articlePool()).slice(0, limit);
 }
+
+/** Entities for the cached pool, also fetched at most once per request. */
+const poolEntities = cache(async () => {
+  const pool = await articlePool();
+  if (pool.length === 0) return [] as (typeof schema.articleEntities.$inferSelect)[];
+  const db = await getDb();
+  return db
+    .select()
+    .from(schema.articleEntities)
+    .where(inArray(schema.articleEntities.articleId, pool.map((a) => a.id)))
+    .all();
+});
 
 export async function topStories(limit = 30): Promise<ArticleRow[]> {
   return dedupeByCluster(await recentArticles(400)).slice(0, limit);
@@ -35,14 +62,25 @@ export async function getArticle(id: number): Promise<ArticleRow | undefined> {
 
 export async function getArticles(ids: number[]): Promise<ArticleRow[]> {
   if (ids.length === 0) return [];
-  const db = await getDb();
-  const rows = await db
-    .select()
-    .from(schema.articles)
-    .where(inArray(schema.articles.id, ids))
-    .all();
   const order = new Map(ids.map((id, i) => [id, i]));
-  return rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+
+  // Most requested ids are already in the cached pool; only fall back to the
+  // database for the remainder, which avoids a round trip per brief section.
+  const pool = await articlePool();
+  const byId = new Map(pool.map((a) => [a.id, a]));
+  const found = ids.map((id) => byId.get(id)).filter((a): a is ArticleRow => Boolean(a));
+  const missing = ids.filter((id) => !byId.has(id));
+
+  if (missing.length > 0) {
+    const db = await getDb();
+    const rows = await db
+      .select()
+      .from(schema.articles)
+      .where(inArray(schema.articles.id, missing))
+      .all();
+    found.push(...rows);
+  }
+  return found.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
 export async function getEntities(articleId: number) {
@@ -59,24 +97,16 @@ export async function relatedArticles(
   article: ArticleRow,
   limit = 6,
 ): Promise<ArticleRow[]> {
-  const db = await getDb();
   const myEntities = (await getEntities(article.id)).map(
     (e) => `${e.entityType}:${e.entity}`,
   );
-  const pool = (await recentArticles(600)).filter((a) => a.id !== article.id);
+  const pool = (await recentArticles()).filter((a) => a.id !== article.id);
   const cluster = pool.filter(
     (a) => article.clusterId != null && a.clusterId === article.clusterId,
   );
   if (myEntities.length === 0) return cluster.slice(0, limit);
 
-  const poolIds = pool.map((a) => a.id);
-  const rows = poolIds.length
-    ? await db
-        .select()
-        .from(schema.articleEntities)
-        .where(inArray(schema.articleEntities.articleId, poolIds))
-        .all()
-    : [];
+  const rows = await poolEntities();
   const byArticle = new Map<number, Set<string>>();
   for (const r of rows) {
     if (!byArticle.has(r.articleId)) byArticle.set(r.articleId, new Set());
@@ -104,17 +134,12 @@ export async function watchlist() {
 
 /** Articles mentioning any watched ticker, for the watchlist news module. */
 export async function watchlistNews(limit = 10): Promise<ArticleRow[]> {
-  const db = await getDb();
   const items = await watchlist();
   if (items.length === 0) return [];
   const symbols = new Set(items.map((i) => i.symbol.toUpperCase()));
-  const recent = await recentArticles(600);
+  const recent = await recentArticles();
   if (recent.length === 0) return [];
-  const rows = await db
-    .select()
-    .from(schema.articleEntities)
-    .where(inArray(schema.articleEntities.articleId, recent.map((a) => a.id)))
-    .all();
+  const rows = await poolEntities();
   const matching = new Set(
     rows
       .filter((r) => r.entityType === "ticker" && symbols.has(r.entity.toUpperCase()))

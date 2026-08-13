@@ -39,28 +39,33 @@ export default async function TodayPage() {
     }
   }
 
-  const refreshedAt = await lastRefreshedAt();
-  const watchItems = await watchlist();
+  // Independent of each other — issue them together rather than in series.
+  const [refreshedAt, watchItems, ranked] = await Promise.all([
+    lastRefreshedAt(),
+    watchlist(),
+    topStories(40),
+  ]);
 
+  // Every brief section resolves from the same cached pool, so this costs
+  // one query in total rather than one per section.
   const sectionArticles = new Map<string, ArticleRow[]>();
   const usedIds = new Set<number>();
   if (brief) {
-    for (const s of brief.content.sections) {
-      const arts = await getArticles(s.articleIds);
-      sectionArticles.set(s.key, arts);
+    const sections = await Promise.all(
+      brief.content.sections.map(async (s) => [s.key, await getArticles(s.articleIds)] as const),
+    );
+    for (const [key, arts] of sections) {
+      sectionArticles.set(key, arts);
       for (const a of arts) usedIds.add(a.id);
     }
   }
 
   // Hero: the strongest visual story of the brief, else the top story.
-  const allBriefArticles = [...usedIds].length
-    ? (await getArticles([...usedIds])).sort((a, b) => b.score - a.score)
-    : [];
-  const hero =
-    allBriefArticles.find((a) => a.imageUrl) ??
-    allBriefArticles[0] ??
-    (await topStories(1))[0];
-  const more = (await topStories(40))
+  const allBriefArticles = [...sectionArticles.values()]
+    .flat()
+    .sort((a, b) => b.score - a.score);
+  const hero = allBriefArticles.find((a) => a.imageUrl) ?? allBriefArticles[0] ?? ranked[0];
+  const more = ranked
     .filter((a) => !usedIds.has(a.id) && a.id !== hero?.id)
     .slice(0, 8);
 

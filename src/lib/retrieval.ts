@@ -32,7 +32,7 @@ export async function searchArticles(query: string, limit = 12): Promise<Article
     .from(schema.articles)
     .where(gt(schema.articles.fetchedAt, cutoff))
     .orderBy(desc(schema.articles.score))
-    .limit(600)
+    .limit(400)
     .all();
   if (recent.length === 0) return [];
 
