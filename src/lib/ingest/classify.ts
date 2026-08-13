@@ -30,6 +30,32 @@ const CATEGORY_KEYWORDS: Record<string, RegExp[]> = {
   ],
 };
 
+/**
+ * Accidents, crime and casualties. A crash in a tunnel or a fire in a
+ * building mentions built-environment vocabulary, but it is general news —
+ * not architecture, property or infrastructure reporting. Without this
+ * guard a fatal road accident can lead the Architecture section.
+ */
+const INCIDENT_KEYWORDS: RegExp[] = [
+  /\b(crash(ed|es)?|collision|accident|derail(ed|ment)?|injur(ed|y|ies)|kill(ed|ing)?|dead|death|died|fatal|casualt(y|ies)|blaze|fire (broke|engulf|rag)|arrest(ed)?|charged|assault|robbery|murder|stabb(ed|ing)|jail(ed)?|doxx?ing|fraud|smuggl)/i,
+  /失事|撞[毀壆車]|車禍|意外|死亡|喪生|受傷|傷者|昏迷|墮斃|火警|縱火|拘捕|被捕|檢控|判囚|行劫|謀殺|襲擊|盜竊|詐騙/,
+];
+
+/**
+ * Signals that a story is genuinely about policy, development or the
+ * industry, strong enough to survive the incident guard (e.g. a report on
+ * tunnel safety regulations rather than a crash inside one).
+ */
+const DOMAIN_OVERRIDE: RegExp[] = [
+  /\b(consultation|policy|ordinance|regulation|tender|land sale|planning apply|planning application|masterplan|budget|approv(ed|al)|guidelines?|framework|review of|study|blueprint|design(ed) by|architects? (has|have|said)|completed|unveil(ed|s)?|opens?|scheme)\b/i,
+  /諮詢|政策|條例|規例|招標|賣地|規劃|藍圖|指引|檢討|研究|落成|啟用|動工|開幕|設計/,
+];
+
+function isIncident(text: string): boolean {
+  if (!INCIDENT_KEYWORDS.some((re) => re.test(text))) return false;
+  return !DOMAIN_OVERRIDE.some((re) => re.test(text));
+}
+
 const REGION_KEYWORDS: Record<string, RegExp[]> = {
   hk: [
     /\b(hong ?kong|hk|kowloon|new territories|hang seng|hkex|mtr|legco|north point|central district|tsim sha tsui|sha tin|kai tak)\b/i,
@@ -57,8 +83,18 @@ export function classifyCategory(
     "markets",
     "government",
   ];
+  // Built-environment sections must not fill up with accidents and crime.
+  const incident = isIncident(text);
+  const builtEnvironment = new Set(["property", "architecture", "infrastructure"]);
+
   for (const cat of priority) {
-    if (CATEGORY_KEYWORDS[cat]?.some((re) => re.test(text))) return cat;
+    if (!CATEGORY_KEYWORDS[cat]?.some((re) => re.test(text))) continue;
+    // A specialist design/property publisher reporting an incident is still
+    // covering its beat; a general newsroom's crash story is not.
+    if (incident && builtEnvironment.has(cat) && !source.categories.includes(cat)) {
+      return "general";
+    }
+    return cat;
   }
   const first = source.categories[0];
   if (first && first !== "hk" && first !== "china" && first !== "world") {

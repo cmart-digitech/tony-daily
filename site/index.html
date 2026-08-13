@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tony Daily — Market &amp; Built Environment Intelligence Terminal</title>
+<meta name="description" content="A private, bilingual daily intelligence dashboard for Hong Kong markets, property and architecture — built on a zero-hallucination policy." />
+<meta name="color-scheme" content="light dark" />
+<style>
+  :root {
+    --bg: #faf9f7;
+    --elevated: #ffffff;
+    --subtle: #f1efeb;
+    --ink: #17171a;
+    --ink-2: #55555c;
+    --ink-3: #8a8a92;
+    --line: #e4e2dd;
+    --line-2: #c9c7c1;
+    --accent: #9a3d1f;
+    --up: #146c43;
+    --serif: Georgia, "Times New Roman", "Noto Serif TC", serif;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang HK", "Noto Sans TC", sans-serif;
+    --mono: "SF Mono", "Cascadia Code", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101013;
+      --elevated: #17171b;
+      --subtle: #1e1e23;
+      --ink: #e9e7e2;
+      --ink-2: #a4a2a0;
+      --ink-3: #75747a;
+      --line: #26262c;
+      --line-2: #3a3a42;
+      --accent: #d0764f;
+      --up: #4cae7f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+  }
+  a { color: inherit; }
+  img { max-width: 100%; display: block; }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── header ── */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .bar { display: flex; align-items: center; gap: 24px; padding: 14px 0; }
+  .logo { font-family: var(--serif); font-weight: 700; font-size: 20px; letter-spacing: -0.01em; text-decoration: none; }
+  .logo span { color: var(--accent); }
+  nav { margin-left: auto; display: flex; gap: 22px; flex-wrap: wrap; }
+  nav a {
+    font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-2); text-decoration: none;
+  }
+  nav a:hover { color: var(--accent); }
+
+  /* ── hero ── */
+  .hero { padding: 84px 0 56px; border-bottom: 1px solid var(--line); }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.28em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 18px;
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 400; letter-spacing: -0.02em;
+    font-size: clamp(38px, 7vw, 68px); line-height: 1.05; margin: 0 0 22px;
+  }
+  .lede { font-size: clamp(17px, 2.2vw, 20px); color: var(--ink-2); max-width: 62ch; margin: 0 0 32px; }
+  .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 12px 22px; font-size: 14px; text-decoration: none;
+    border: 1px solid var(--ink); background: var(--ink); color: var(--bg);
+    transition: opacity .15s ease;
+  }
+  .btn:hover { opacity: .85; }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line-2); }
+  .btn.ghost:hover { border-color: var(--accent); color: var(--accent); opacity: 1; }
+
+  /* ── sections ── */
+  section { padding: 64px 0; border-bottom: 1px solid var(--line); }
+  .label {
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 28px; font-weight: 600;
+  }
+  h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(26px, 4vw, 38px); line-height: 1.15; margin: 0 0 18px; letter-spacing: -0.01em; }
+  h3 { font-family: var(--serif); font-weight: 400; font-size: 20px; margin: 0 0 8px; }
+  p { margin: 0 0 16px; }
+  .muted { color: var(--ink-2); }
+
+  .grid { display: grid; gap: 32px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .card { border-top: 2px solid var(--ink); padding-top: 16px; }
+  .card p { font-size: 15px; color: var(--ink-2); margin: 0; }
+
+  /* ── shots ── */
+  figure { margin: 0 0 40px; }
+  figure img { border: 1px solid var(--line); background: var(--subtle); }
+  figcaption { font-size: 12px; color: var(--ink-3); margin-top: 10px; }
+  .two { display: grid; gap: 32px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .two { grid-template-columns: 1fr 1fr; } }
+
+  /* ── principles ── */
+  .rule { display: flex; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+  .rule:last-child { border-bottom: 0; }
+  .rule .n { font-family: var(--mono); font-size: 12px; color: var(--accent); padding-top: 4px; min-width: 28px; }
+  .rule div p { margin: 0; font-size: 15px; color: var(--ink-2); }
+  .rule div strong { color: var(--ink); font-weight: 600; }
+
+  /* ── stack ── */
+  .stack { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); font-size: 14px; }
+  .stack div { border-left: 2px solid var(--line-2); padding: 4px 0 4px 14px; color: var(--ink-2); }
+  .stack b { display: block; color: var(--ink); font-weight: 600; }
+
+  .note {
+    border: 1px solid var(--line-2); background: var(--subtle);
+    padding: 18px 20px; font-size: 14px; color: var(--ink-2);
+  }
+  .note strong { color: var(--ink); }
+
+  footer { padding: 40px 0 64px; font-size: 13px; color: var(--ink-3); }
+  footer a { color: var(--ink-2); }
+  code { font-family: var(--mono); font-size: .92em; background: var(--subtle); padding: 1px 5px; border: 1px solid var(--line); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <a class="logo" href="#top">TONY<span>·</span>DAILY</a>
+    <nav>
+      <a href="#what">Overview</a>
+      <a href="#interface">Interface</a>
+      <a href="#principles">Principles</a>
+      <a href="#how">How it works</a>
+      <a href="#run">Run it</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <div class="wrap hero">
+    <p class="eyebrow">Hong Kong · Markets · Property · Architecture</p>
+    <h1>A private daily intelligence terminal for the built environment.</h1>
+    <p class="lede">
+      Tony Daily gathers Hong Kong government filings, public-broadcaster
+      reporting and specialist architecture media into one calm, bilingual
+      morning briefing — then refuses to tell you anything it cannot trace
+      back to a source.
+    </p>
+    <div class="actions">
+      <a class="btn" href="https://github.com/cmart-digitech/tony-daily">View the repository</a>
+      <a class="btn ghost" href="#run">How to run it</a>
+    </div>
+  </div>
+
+  <section id="what">
+    <div class="wrap">
+      <p class="label">Overview</p>
+      <h2>Built for one reader, with one rule.</h2>
+      <p class="muted" style="max-width:70ch">
+        The product is a personal intelligence dashboard: a Bloomberg-style
+        market strip, an editorial front page, a stock watchlist and a research
+        assistant, tuned to a single reader's interests in Hong Kong markets,
+        property development, architecture and infrastructure. The governing
+        constraint is that nothing may be invented — not a headline, not a
+        price, not a citation.
+      </p>
+      <div class="grid" style="margin-top:36px">
+        <div class="card">
+          <h3>Daily Brief</h3>
+          <p>Eight to fifteen stories that matter, grouped by Hong Kong,
+          property, built environment, Greater China and global — not fifty
+          low-value articles.</p>
+        </div>
+        <div class="card">
+          <h3>Bilingual by design</h3>
+          <p>English, 繁體中文 or 雙語. Original headlines are never rewritten;
+          translations and summaries are labelled as AI-assisted.</p>
+        </div>
+        <div class="card">
+          <h3>Watchlist &amp; markets</h3>
+          <p>Hong Kong and US securities behind a provider abstraction. Every
+          price carries its fetch time and a conservative entitlement label.</p>
+        </div>
+        <div class="card">
+          <h3>Grounded assistant</h3>
+          <p>Ask Tony Daily retrieves indexed sources before answering and
+          cites them inline — or says the information is unavailable.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="interface">
+    <div class="wrap">
+      <p class="label">Interface</p>
+      <h2>Minimal, architectural, information-rich.</h2>
+      <p class="muted" style="max-width:70ch">
+        Bloomberg density where data belongs, Apple restraint in the chrome,
+        and generous photography for architecture and property. Light, dark
+        and system themes carry equal readability.
+      </p>
+
+      <figure style="margin-top:36px">
+        <img src="assets/dashboard.png" alt="The Tony Daily dashboard: a masthead reading Good morning, Tony, a large architecture hero story, and a right-hand rail listing Chinese and English market headlines with source and verification labels." width="1440" height="1000" />
+        <figcaption>The Daily Brief. Screenshot of the running application, 13 August 2026 — real feed content, not a mockup.</figcaption>
+      </figure>
+
+      <figure>
+        <img src="assets/sources.png" alt="The settings page showing interest weighting sliders and a source health table listing each feed with its language, tier, last sync time and status." width="1440" height="1000" loading="lazy" />
+        <figcaption>Interest weighting and live source health — every feed reports its own freshness, so failures are visible rather than silently serving stale news.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="principles">
+    <div class="wrap">
+      <p class="label">Principles</p>
+      <h2>What the system refuses to do.</h2>
+      <div style="max-width:78ch; margin-top:28px">
+        <div class="rule">
+          <span class="n">01</span>
+          <div><p><strong>Never invent.</strong> No fabricated news, prices, quotes,
+          statistics, sources or URLs. If verified information is unavailable, the
+          product says so and shows an empty state.</p></div>
+        </div>
+        <div class="rule">
+          <span class="n">02</span>
+          <div><p><strong>Provenance is mandatory.</strong> Every article keeps its
+          publisher, original headline, original language, canonical URL, publication
+          and ingestion timestamps, and a verification status.</p></div>
+        </div>
+        <div class="rule">
+          <span class="n">03</span>
+          <div><p><strong>Evidence is graded.</strong> Stories are labelled
+          <em>Primary source</em> when they come from government or a regulator,
+          <em>Corroborated</em> when independent outlets agree, and
+          <em>Single source</em> otherwise.</p></div>
+        </div>
+        <div class="rule">
+          <span class="n">04</span>
+          <div><p><strong>Delayed is never called live.</strong> Market data carries
+          its fetch time in HKT and a conservative entitlement label. A missing quote
+          shows an error, never a plausible placeholder.</p></div>
+        </div>
+        <div class="rule">
+          <span class="n">05</span>
+          <div><p><strong>Retrieval before generation.</strong> The assistant answers
+          only from retrieved sources and labelled market data, separates fact from
+          interpretation, and never invents a cause for a price movement.</p></div>
+        </div>
+        <div class="rule">
+          <span class="n">06</span>
+          <div><p><strong>No synthetic imagery.</strong> An unavailable photograph
+          is better than a misleading one; the fallback is a typographic placeholder,
+          never a generated "news" image.</p></div>
+        </div>
+        <div class="rule">
+          <span class="n">07</span>
+          <div><p><strong>Publishers are respected.</strong> Only metadata and
+          permitted excerpts are stored, feeds are polled politely, and paywalls
+          and robots rules are never circumvented.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <p class="label">How it works</p>
+      <h2>From feed to front page.</h2>
+      <p class="muted" style="max-width:70ch">
+        Eighteen RSS sources — Hong Kong Government News (EN and 繁, including the
+        infrastructure and finance desks), RTHK, SCMP, BBC Business, Dezeen,
+        ArchDaily and designboom — every endpoint verified live before it was
+        committed.
+      </p>
+      <div class="stack" style="margin-top:28px">
+        <div><b>Ingest</b>Polite polling with cooldowns, timeouts, retries and sync logs.</div>
+        <div><b>Deduplicate</b>Canonical URL and content hash reject repeats.</div>
+        <div><b>Classify</b>Category and region from EN and 繁 keyword rules.</div>
+        <div><b>Extract</b>Companies, tickers, departments and districts.</div>
+        <div><b>Cluster</b>One event becomes one card, with every source kept.</div>
+        <div><b>Rank</b>Relevance, authority, recency, geography, corroboration, novelty.</div>
+      </div>
+      <p class="muted" style="margin-top:32px; max-width:70ch">
+        Clustering is the part that needed real evidence rather than intuition.
+        Plain word-overlap similarity produced <em>zero</em> clusters across 472
+        live articles, because publishers write the same event at very different
+        lengths — a government notice reading "Building laws consultation begins"
+        against a broadcaster's "Consultation on building management law reform
+        begins" — while generic tokens like "Hong Kong" inflate unrelated pairs.
+        Replacing it with IDF-weighted containment, calibrated against the live
+        index, produced correct clusters with no false merges.
+      </p>
+    </div>
+  </section>
+
+  <section id="run">
+    <div class="wrap">
+      <p class="label">Run it</p>
+      <h2>The application is a server, not a static page.</h2>
+      <p class="muted" style="max-width:70ch">
+        This page you are reading is static, and GitHub Pages serves it happily.
+        The dashboard itself cannot live here: it needs a Node.js runtime, a
+        database, scheduled feed ingestion and server-side API keys. It is built
+        to deploy on a free Node host with a hosted SQLite database.
+      </p>
+      <div class="note" style="margin-top:28px; max-width:70ch">
+        <strong>Status.</strong> The source is public in the repository below and
+        runs locally with <code>npm install &amp;&amp; npm run dev</code>. A hosted
+        instance is deliberately access-controlled — it is a private dashboard
+        built for one reader, not a public news site.
+      </div>
+      <div class="actions" style="margin-top:28px">
+        <a class="btn" href="https://github.com/cmart-digitech/tony-daily">Repository &amp; setup guide</a>
+        <a class="btn ghost" href="https://github.com/cmart-digitech/tony-daily#deployment-free-tier">Deployment notes</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>
+      Tony Daily — Tony's Personal Market + Built Environment Intelligence Terminal.<br />
+      Built by <a href="https://cmart-digitech.github.io/carlwin-martirez/">Carlwin Martirez</a>.
+      Source on <a href="https://github.com/cmart-digitech/tony-daily">GitHub</a>.
+    </p>
+    <p style="margin-top:18px">
+      Screenshots show the running application with live feed content on the date
+      noted. Headlines and images in those screenshots belong to their respective
+      publishers. Market information shown in the product is for information only
+      and is not financial advice.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
