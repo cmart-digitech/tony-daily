@@ -17,14 +17,27 @@ import { aiModelId, completeRaw, isAiConfigured } from "@/lib/ai";
  * AI-assisted in the UI.
  */
 
+/**
+ * Tolerant of the ways models actually answer: an omitted key, an explicit
+ * null, or junk in one field must not discard the whole extraction.
+ */
+const field = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .nullish()
+  .catch(null)
+  .transform((v) => v ?? null);
+
 const ResponseSchema = z.object({
-  project: z.string().trim().min(1).max(200).nullable(),
-  location: z.string().trim().min(1).max(200).nullable(),
-  developer: z.string().trim().min(1).max(200).nullable(),
-  architect: z.string().trim().min(1).max(200).nullable(),
-  landUse: z.string().trim().min(1).max(200).nullable(),
-  status: z.string().trim().min(1).max(200).nullable(),
-  keyFacts: z.array(z.string().trim().min(1).max(300)).max(5).default([]),
+  project: field,
+  location: field,
+  developer: field,
+  architect: field,
+  landUse: field,
+  status: field,
+  keyFacts: z.array(z.string().trim().min(1).max(300)).max(5).catch([]).default([]),
 });
 
 export type ArticleFactsRow = typeof schema.articleFacts.$inferSelect;
@@ -85,10 +98,15 @@ export async function getOrExtractFacts(
 
   let parsed: z.infer<typeof ResponseSchema>;
   try {
-    const raw = await completeRaw(SYSTEM, `TEXT:\n\n${sourceText}`, 800);
+    // Generous budget: reasoning models spend tokens before emitting JSON,
+    // and a truncated object parses as nothing at all.
+    const raw = await completeRaw(SYSTEM, `TEXT:\n\n${sourceText}`, 2000);
     parsed = ResponseSchema.parse(parseModelJson(raw));
-  } catch {
-    return null; // extraction is an enhancement; failures stay silent
+  } catch (err) {
+    // Extraction is an enhancement — the page works without it — but the
+    // failure reason must be visible in server logs, not swallowed.
+    console.error(`facts extraction failed for article ${article.id}:`, err);
+    return null;
   }
 
   const row: typeof schema.articleFacts.$inferInsert = {
