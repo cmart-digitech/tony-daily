@@ -48,10 +48,18 @@ function createHandle(): DbHandle {
   }
   const resolved = path.resolve(/* turbopackIgnore: true */ process.cwd(), DB_PATH);
   fs.mkdirSync(path.dirname(resolved), { recursive: true });
-  // Dynamic require keeps better-sqlite3 out of serverless bundles when
-  // Turso is configured.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Database = require("better-sqlite3") as typeof import("better-sqlite3");
+  // Dynamic require keeps better-sqlite3 (an optional native dependency) out
+  // of serverless bundles when Turso is configured.
+  let Database: typeof import("better-sqlite3");
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    Database = require("better-sqlite3") as typeof import("better-sqlite3");
+  } catch {
+    throw new Error(
+      "No database configured. Set TURSO_DATABASE_URL for a hosted database, " +
+        "or install the optional better-sqlite3 package for a local SQLite file.",
+    );
+  }
   const sqlite = new Database(resolved);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("busy_timeout = 5000");
