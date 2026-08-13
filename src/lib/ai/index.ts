@@ -185,8 +185,9 @@ export async function summarizeArticle(options: {
 
   const summary = await complete(
     GROUNDING_RULES,
-    `${levelInstruction}\n${langInstruction}\nNote that this is an AI-assisted summary of the sources below — do not add information that is not in them.\n\nSOURCES:\n\n${block}`,
-    level === "deep" ? 1600 : 700,
+    `${levelInstruction}\n${langInstruction}\nThis is an AI-assisted summary of the sources below — do not add information that is not in them. Write plain prose with no Markdown, no headings and no bold. Do not end mid-sentence.\n\nSOURCES:\n\n${block}`,
+    // Headroom for models that spend part of the budget reasoning.
+    level === "deep" ? 3000 : 1500,
   );
 
   await db
@@ -236,7 +237,13 @@ ${quoteBlock}
 QUESTION:
 ${question}
 
-Answer the question using only the material above, with [n] citations for every factual news claim. If the material is insufficient, say so plainly.`;
+HOW TO ANSWER
+- Use only the material above. If it is insufficient, say so plainly.
+- MANDATORY: every sentence containing a fact from the sources must end with
+  its citation marker — [1], [2], and so on — before the full stop or after it.
+  An answer with no [n] markers is treated as unsourced and is not acceptable.
+- Write flowing prose in complete sentences. No Markdown, no headings, no
+  bullet characters, no bold. Do not end mid-sentence.`;
 
   const text = await callModel({
     system: GROUNDING_RULES,
@@ -244,7 +251,9 @@ Answer the question using only the material above, with [n] citations for every 
       ...history.slice(-6).map((m) => ({ role: m.role, content: m.content })),
       { role: "user" as const, content: user },
     ],
-    maxTokens: 1400,
+    // Generous, because some models spend part of the budget on internal
+    // reasoning and would otherwise return a truncated answer.
+    maxTokens: 3000,
   });
 
   // Only keep citations actually referenced in the answer.
@@ -266,8 +275,8 @@ export async function writeBriefOverview(options: {
     language === "zh-HK" ? "Write in Traditional Chinese (香港繁體中文)." : "Write in English.";
   return complete(
     GROUNDING_RULES,
-    `Write a calm 3–5 sentence morning overview for Tony's Daily Brief for ${dateLabel}, weaving together only the most important of the sources below. ${langInstruction} Include [n] citations. No hype, no speculation, no advice.\n\nSOURCES:\n\n${block}`,
-    600,
+    `Write a calm 3–5 sentence morning overview for Tony's Daily Brief for ${dateLabel}, weaving together only the most important of the sources below. ${langInstruction} Every sentence carrying a fact must end with its [n] citation marker. No hype, no speculation, no advice. Plain prose only — no Markdown, no headings, no bullets, no bold. Do not end mid-sentence.\n\nSOURCES:\n\n${block}`,
+    1500,
   );
 }
 
