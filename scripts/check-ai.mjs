@@ -6,6 +6,24 @@
  * Reads the same environment variables the app uses, sends one tiny grounded
  * prompt, and reports whether the provider answered. Prints no secrets.
  */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Load .env.local the way Next.js would, so the script works from a plain
+// shell without exporting anything by hand. Real environment variables win.
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+for (const file of [".env.local", ".env"]) {
+  const full = path.join(projectRoot, file);
+  if (!fs.existsSync(full)) continue;
+  for (const line of fs.readFileSync(full, "utf8").split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/i);
+    if (!m) continue;
+    const value = m[2].trim().replace(/^["']|["']$/g, "");
+    if (value && process.env[m[1]] === undefined) process.env[m[1]] = value;
+  }
+}
+
 const PRESETS = {
   gemini: {
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
