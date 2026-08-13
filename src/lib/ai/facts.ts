@@ -77,18 +77,23 @@ function groundedOrNull(value: string | null, sourceText: string): string | null
   return sourceText.toLowerCase().includes(value.toLowerCase()) ? value : null;
 }
 
-export async function getOrExtractFacts(
-  article: ArticleRow,
-): Promise<ArticleFactsRow | null> {
+export interface FactsResult {
+  facts: ArticleFactsRow | null;
+  /** Why extraction produced nothing — diagnostic text, never secret. */
+  reason?: string;
+}
+
+export async function getOrExtractFacts(article: ArticleRow): Promise<FactsResult> {
   const db = await getDb();
   const cached = await db
     .select()
     .from(schema.articleFacts)
     .where(eq(schema.articleFacts.articleId, article.id))
     .get();
-  if (cached) return cached;
+  if (cached) return { facts: cached };
 
-  if (!factsApplicable(article) || !isAiConfigured()) return null;
+  if (!factsApplicable(article)) return { facts: null, reason: "not-applicable" };
+  if (!isAiConfigured()) return { facts: null, reason: "ai-not-configured" };
 
   const members = await clusterMembers(article);
   const sourceText = members
@@ -104,9 +109,10 @@ export async function getOrExtractFacts(
     parsed = ResponseSchema.parse(parseModelJson(raw));
   } catch (err) {
     // Extraction is an enhancement — the page works without it — but the
-    // failure reason must be visible in server logs, not swallowed.
-    console.error(`facts extraction failed for article ${article.id}:`, err);
-    return null;
+    // failure reason must be visible, not swallowed.
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error(`facts extraction failed for article ${article.id}: ${reason}`);
+    return { facts: null, reason: reason.slice(0, 300) };
   }
 
   const row: typeof schema.articleFacts.$inferInsert = {
@@ -126,11 +132,11 @@ export async function getOrExtractFacts(
   } catch {
     // a concurrent request may have inserted first; read whichever won
   }
-  return (
+  const stored =
     (await db
       .select()
       .from(schema.articleFacts)
       .where(eq(schema.articleFacts.articleId, article.id))
-      .get()) ?? null
-  );
+      .get()) ?? null;
+  return { facts: stored, reason: stored ? undefined : "store-failed" };
 }

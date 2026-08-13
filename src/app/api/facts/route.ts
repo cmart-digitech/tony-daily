@@ -48,6 +48,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const facts = await getOrExtractFacts(article);
-  return NextResponse.json({ ok: true, facts });
+  const result = await getOrExtractFacts(article);
+  return NextResponse.json({ ok: true, facts: result.facts, reason: result.reason });
 }
