@@ -11,6 +11,11 @@ name: Refresh news
 #   APP_URL      e.g. https://tony-daily.vercel.app   (no trailing slash)
 #   CRON_SECRET  the same value set in the hosting provider's env vars
 #
+# Optional but needed when Vercel Deployment Protection is enabled — without
+# it the request is answered by Vercel's login page instead of the app:
+#   VERCEL_BYPASS_TOKEN  Vercel → Settings → Deployment Protection →
+#                        Protection Bypass for Automation
+#
 # Notes:
 # - GitHub's scheduler is best-effort and can lag at busy times; the app's
 #   own 15-minute per-source cooldown keeps it polite to publishers.
@@ -34,18 +39,38 @@ jobs:
         env:
           APP_URL: ${{ secrets.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          VERCEL_BYPASS_TOKEN: ${{ secrets.VERCEL_BYPASS_TOKEN }}
         run: |
           if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
             echo "APP_URL or CRON_SECRET repository secret is not set."
             exit 1
           fi
+
+          # Deployment Protection, when on, answers unauthenticated requests
+          # with an HTML login page. The bypass header is what lets a robot
+          # through without opening the dashboard to the public.
+          bypass=()
+          if [ -n "$VERCEL_BYPASS_TOKEN" ]; then
+            bypass=(-H "x-vercel-protection-bypass: $VERCEL_BYPASS_TOKEN")
+          fi
+
           code=$(curl -sS -o /tmp/out.json -w "%{http_code}" \
             -H "Authorization: Bearer $CRON_SECRET" \
+            "${bypass[@]}" \
             "$APP_URL/api/cron/ingest")
           echo "HTTP $code"
-          # Print the per-source result summary without leaking the secret.
+          # Print the per-source summary. It contains no secrets.
           head -c 2000 /tmp/out.json || true
           echo
+
+          if [ "$code" = "401" ]; then
+            echo "Unauthorised: CRON_SECRET here does not match the one deployed."
+            exit 1
+          fi
+          if grep -qi "Authentication Required\|<!DOCTYPE html>" /tmp/out.json 2>/dev/null; then
+            echo "Blocked by Deployment Protection. Set VERCEL_BYPASS_TOKEN (see header comment)."
+            exit 1
+          fi
           if [ "$code" != "200" ]; then
             echo "Ingestion failed."
             exit 1
