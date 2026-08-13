@@ -6,6 +6,7 @@ import RefreshBriefButton from "@/components/RefreshBriefButton";
 import WatchlistMini from "@/components/WatchlistMini";
 import { generateDailyBrief, getTodaysBrief } from "@/lib/brief";
 import { hkFullDate, timeAgo } from "@/lib/format";
+import { greetingFor } from "@/lib/greeting";
 import { t } from "@/lib/i18n";
 import { imageFirst } from "@/lib/layout";
 import { lastRefreshedAt } from "@/lib/ingest";
@@ -29,6 +30,8 @@ export default async function TodayPage() {
   if (!prefs.onboarded) redirect("/onboarding");
   const lang = prefs.language;
   const zh = lang === "zh" ? "zh" : "en";
+  // Greeting follows Hong Kong time, not the server's region.
+  const greeting = greetingFor(lang);
 
   let brief = await getTodaysBrief();
   if (!brief) {
@@ -81,11 +84,9 @@ export default async function TodayPage() {
           <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.25em] text-accent">
             {hkFullDate(zh)} · Hong Kong
           </p>
-          <h1 className="font-serif text-3xl text-ink sm:text-4xl">
-            {t(lang, "goodMorning", { bilingual: true })}
-          </h1>
+          <h1 className="font-serif text-3xl text-ink sm:text-4xl">{greeting.title}</h1>
           <p className="mt-1 text-sm text-ink-3">
-            {t(lang, "dailyBrief")} — {t(lang, "hongKong")} · {t(lang, "markets")} ·{" "}
+            {greeting.subtitle} — {t(lang, "hongKong")} · {t(lang, "markets")} ·{" "}
             {t(lang, "property")} · {t(lang, "architecture")}
           </p>
         </div>
