@@ -1,5 +1,6 @@
 import ArticleCard from "@/components/ArticleCard";
 import { t } from "@/lib/i18n";
+import { imageFirst, pickLead } from "@/lib/layout";
 import { articlesByCategory } from "@/lib/queries";
 import { getPreferences } from "@/lib/prefs";
 
@@ -9,7 +10,10 @@ export default async function PropertyPage() {
   const prefs = await getPreferences();
   const lang = prefs.language;
   const stories = await articlesByCategory(["property"], 24);
-  const [lead, ...rest] = stories;
+  // Ranking decides which stories appear; these only arrange them so the
+  // photo-led grid reads evenly.
+  const lead = pickLead(stories);
+  const rest = imageFirst(stories.filter((a) => a.id !== lead?.id));
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">

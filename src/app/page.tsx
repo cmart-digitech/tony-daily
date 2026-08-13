@@ -7,6 +7,7 @@ import WatchlistMini from "@/components/WatchlistMini";
 import { generateDailyBrief, getTodaysBrief } from "@/lib/brief";
 import { hkFullDate, timeAgo } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { imageFirst } from "@/lib/layout";
 import { lastRefreshedAt } from "@/lib/ingest";
 import { getArticles, topStories, watchlist } from "@/lib/queries";
 import { getPreferences } from "@/lib/prefs";
@@ -149,11 +150,14 @@ export default async function TodayPage() {
             {brief?.content.sections
               .filter((s) => s.key !== "watchlist")
               .map((section) => {
-                const arts = (sectionArticles.get(section.key) ?? []).filter(
+                const selected = (sectionArticles.get(section.key) ?? []).filter(
                   (a) => a.id !== hero?.id,
                 );
-                if (arts.length === 0) return null;
+                if (selected.length === 0) return null;
                 const visual = section.key === "property" || section.key === "architecture";
+                // Photo-led sections group illustrated stories first; text
+                // sections keep pure relevance order.
+                const arts = visual ? imageFirst(selected) : selected;
                 return (
                   <section key={section.key} className="mt-12">
                     <h2 className="mb-5 flex items-baseline justify-between border-b border-line pb-2">

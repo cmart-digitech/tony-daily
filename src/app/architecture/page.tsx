@@ -1,5 +1,6 @@
 import ArticleCard from "@/components/ArticleCard";
 import { t } from "@/lib/i18n";
+import { imageFirst, pickLead } from "@/lib/layout";
 import { articlesByCategory } from "@/lib/queries";
 import { getPreferences } from "@/lib/prefs";
 
@@ -10,7 +11,11 @@ export default async function ArchitecturePage() {
   const prefs = await getPreferences();
   const lang = prefs.language;
   const stories = await articlesByCategory(["architecture", "infrastructure"], 25);
-  const [lead, second, ...rest] = stories;
+  // Ranking decides which stories appear; these only arrange them so the
+  // photo-led grid reads evenly.
+  const lead = pickLead(stories);
+  const remaining = imageFirst(stories.filter((a) => a.id !== lead?.id));
+  const [second, ...rest] = remaining;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
