@@ -130,8 +130,10 @@ more frequent ingestion:
   once a minute, with 15-minute per-source cooldowns).
 - **GitHub Actions** (included): `.github/workflows/refresh-news.yml` pings
   the ingestion endpoint every 30 minutes during Hong Kong waking hours.
-  Scheduled Actions are free on public repositories. Add two repository
-  secrets under **Settings → Secrets and variables → Actions**:
+  Scheduled Actions are free and unmetered on **public** repositories; on a
+  private repo this cadence uses roughly half the 2,000-minute monthly free
+  allowance, so widen the schedule there. Add two repository secrets under
+  **Settings → Secrets and variables → Actions**:
 
   | Secret | Value |
   |---|---|

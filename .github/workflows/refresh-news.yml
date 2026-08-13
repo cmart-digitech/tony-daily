@@ -11,8 +11,13 @@ name: Refresh news
 #   APP_URL      e.g. https://tony-daily.vercel.app   (no trailing slash)
 #   CRON_SECRET  the same value set in the hosting provider's env vars
 #
-# Note: GitHub's scheduler is best-effort and can lag at busy times; the
-# app's own 15-minute per-source cooldown keeps it polite to publishers.
+# Notes:
+# - GitHub's scheduler is best-effort and can lag at busy times; the app's
+#   own 15-minute per-source cooldown keeps it polite to publishers.
+# - Scheduled Actions are free and unmetered on PUBLIC repositories. On a
+#   private repo each run bills a minimum of one minute, so this cadence
+#   (~34 runs/day) uses roughly half the 2,000-minute free allowance —
+#   widen the schedule below if you keep the repo private.
 
 on:
   schedule:
