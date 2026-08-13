@@ -90,6 +90,8 @@ NON-NEGOTIABLE RULES:
 - Preserve names, numbers, stock codes and dates exactly as in the sources.
 - Never give personalised buy/sell advice. If asked, explain you provide information, not financial advice.
 - If the user writes in Cantonese/Traditional Chinese, reply in natural Hong Kong written Traditional Chinese (繁體中文, zh-HK). If they write in English, reply in English.
+- Earlier conversation turns show what was DISCUSSED, not what is true now. A price, event or figure mentioned in past conversation is stale by definition — answer time-sensitive questions ONLY from the current SOURCES and MARKET DATA blocks, and say when they do not cover the question.
+- Saved preferences describe what Tony likes and how he wants answers — they are NEVER factual evidence about the world.
 
 FORMATTING:
 - Write clean, calm editorial prose. Do NOT use Markdown syntax: no #, ##, ###, **, *, ---, tables or code fences.
@@ -219,9 +221,17 @@ export async function answerQuestion(options: {
   articles: ArticleForContext[];
   quotes: Quote[];
   history: { role: "user" | "assistant"; content: string }[];
+  /** Explicit user-saved preferences — context, never evidence. */
+  memories?: string[];
 }): Promise<{ text: string; citations: Citation[] }> {
-  const { question, articles, quotes, history } = options;
+  const { question, articles, quotes, history, memories } = options;
   const { block, citations } = buildSourceBlock(articles);
+
+  const memoryBlock = memories?.length
+    ? `\nTONY'S SAVED PREFERENCES (how he wants answers — NOT factual evidence):\n${memories
+        .map((m) => `- ${m}`)
+        .join("\n")}\n`
+    : "";
 
   const quoteBlock = quotes.length
     ? quotes
@@ -242,7 +252,7 @@ ${block || "No relevant articles found in the currently connected sources."}
 
 MARKET DATA (${quotes.length ? "delayed/end-of-day as labelled" : "none available"}):
 ${quoteBlock}
-
+${memoryBlock}
 QUESTION:
 ${question}
 

@@ -17,6 +17,7 @@ export type Category =
   | "architecture"
   | "infrastructure"
   | "government"
+  | "art"
   | "hk"
   | "china"
   | "world"
@@ -345,6 +346,63 @@ export const SOURCES: SourceConfig[] = [
     categories: ["architecture"],
     feedUrl: "https://www.archdaily.com/feed",
     homepage: "https://www.archdaily.com",
+    primary: false,
+    enabled: true,
+  },
+  // ── Tier C — art-market / art media (verified live 2026-08-13) ─────
+  {
+    id: "theartnewspaper",
+    name: "The Art Newspaper",
+    language: "en",
+    region: "global",
+    type: "rss",
+    tier: "C",
+    authority: 78,
+    categories: ["art"],
+    feedUrl: "https://www.theartnewspaper.com/rss.xml",
+    homepage: "https://www.theartnewspaper.com",
+    primary: false,
+    enabled: true,
+  },
+  {
+    id: "artasiapacific",
+    name: "ArtAsiaPacific",
+    language: "en",
+    region: "apac",
+    type: "rss",
+    tier: "C",
+    authority: 74,
+    categories: ["art"],
+    feedUrl: "https://artasiapacific.com/rss",
+    homepage: "https://artasiapacific.com",
+    primary: false,
+    enabled: true,
+  },
+  {
+    id: "artnet-news",
+    name: "Artnet News",
+    language: "en",
+    region: "global",
+    type: "rss",
+    tier: "C",
+    authority: 74,
+    categories: ["art"],
+    feedUrl: "https://news.artnet.com/feed",
+    homepage: "https://news.artnet.com",
+    primary: false,
+    enabled: true,
+  },
+  {
+    id: "hyperallergic",
+    name: "Hyperallergic",
+    language: "en",
+    region: "global",
+    type: "rss",
+    tier: "C",
+    authority: 70,
+    categories: ["art"],
+    feedUrl: "https://hyperallergic.com/feed/",
+    homepage: "https://hyperallergic.com",
     primary: false,
     enabled: true,
   },

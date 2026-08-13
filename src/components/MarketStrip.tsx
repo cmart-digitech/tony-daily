@@ -76,6 +76,7 @@ export default function MarketStrip() {
               </span>
               {quote.percentChange != null && (
                 <span className={up ? "text-up" : "text-down"}>
+                  <span aria-hidden>{up ? "▲" : "▼"}</span>
                   {up ? "+" : ""}
                   {quote.percentChange.toFixed(2)}%
                 </span>

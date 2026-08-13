@@ -1,3 +1,5 @@
+import MemoriesPanel from "@/components/MemoriesPanel";
+import ReadingComfortPanel from "@/components/ReadingComfortPanel";
 import SettingsPanel from "@/components/SettingsPanel";
 import SourceTable from "@/components/SourceTable";
 import { t } from "@/lib/i18n";
@@ -27,6 +29,18 @@ export default async function SettingsPage() {
           interests: t(lang, "interests"),
         }}
       />
+      <section className="mt-14">
+        <h2 className="mb-4 border-b border-line pb-2 text-xs font-semibold uppercase tracking-widest text-ink">
+          {lang === "zh" ? "閱讀設定" : "Reading Comfort · 閱讀設定"}
+        </h2>
+        <ReadingComfortPanel initial={prefs.comfort} zh={lang === "zh"} />
+      </section>
+      <section className="mt-14">
+        <h2 className="mb-4 border-b border-line pb-2 text-xs font-semibold uppercase tracking-widest text-ink">
+          {lang === "zh" ? "Tony Daily 記住咗啲乜" : "What Tony Daily Remembers"}
+        </h2>
+        <MemoriesPanel zh={lang === "zh"} />
+      </section>
       <section className="mt-14">
         <h2 className="mb-4 border-b border-line pb-2 text-xs font-semibold uppercase tracking-widest text-ink">
           {t(lang, "sourceHealth", { bilingual: true })}

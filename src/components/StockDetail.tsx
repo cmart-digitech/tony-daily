@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import InteractiveChart from "./InteractiveChart";
 import type { Quote, TimeSeriesBar } from "@/lib/market/types";
 
 interface Labels {
@@ -33,7 +34,7 @@ export default function StockDetail({
       try {
         const [qRes, sRes] = await Promise.all([
           fetch(`/api/quotes?symbols=${encodeURIComponent(symbol)}`),
-          fetch(`/api/series?symbol=${encodeURIComponent(symbol)}`),
+          fetch(`/api/series?symbol=${encodeURIComponent(symbol)}&points=260`),
         ]);
         const qData = await qRes.json();
         const sData = await sRes.json();
@@ -79,24 +80,6 @@ export default function StockDetail({
     hour12: false,
   }).format(new Date(quote.fetchedAt));
 
-  const closes = bars?.map((b) => b.close) ?? [];
-  const W = 720;
-  const H = 220;
-  let path = "";
-  if (closes.length > 1) {
-    const min = Math.min(...closes);
-    const max = Math.max(...closes);
-    const range = max - min || 1;
-    const step = W / (closes.length - 1);
-    path = closes
-      .map((c, i) => {
-        const x = i * step;
-        const y = H - 8 - ((c - min) / range) * (H - 16);
-        return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(" ");
-  }
-
   const rows: [string, string][] = [
     ["Open", fmt(quote.open)],
     ["Prev close", fmt(quote.previousClose)],
@@ -120,6 +103,7 @@ export default function StockDetail({
             {fmt(quote.price)}
           </p>
           <p className={`text-sm ${up ? "text-up" : "text-down"}`}>
+            <span aria-hidden>{up ? "▲" : "▼"}</span>{" "}
             {quote.change != null ? `${up ? "+" : ""}${fmt(quote.change)}` : "—"}{" "}
             {quote.percentChange != null
               ? `(${up ? "+" : ""}${quote.percentChange.toFixed(2)}%)`
@@ -132,27 +116,14 @@ export default function StockDetail({
         </p>
       </div>
 
-      {closes.length > 1 && (
-        <figure className="mt-8">
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            role="img"
-            aria-label={`${quote.symbol} 90-day closing price chart`}
-            className="w-full"
-          >
-            <path
-              d={path}
-              fill="none"
-              stroke={closes[closes.length - 1] >= closes[0] ? "var(--up)" : "var(--down)"}
-              strokeWidth="2"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <figcaption className="mt-2 text-xs text-ink-3">
-            90 days · daily close · {quote.currency ?? ""} · Twelve Data ·{" "}
-            {labels.updated} {time} HKT
-          </figcaption>
-        </figure>
+      {bars && bars.length > 1 && (
+        <div className="mt-8">
+          <InteractiveChart
+            bars={bars}
+            currency={quote.currency}
+            updatedLabel={`${labels.updated} ${time} HKT`}
+          />
+        </div>
       )}
 
       <dl className="mt-8 grid grid-cols-2 gap-x-8 gap-y-3 font-mono text-sm sm:grid-cols-3 lg:grid-cols-4">

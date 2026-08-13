@@ -257,9 +257,15 @@ export default function WatchlistBoard({
                       })}
                     </p>
                     <p className={`text-xs ${up ? "text-up" : "text-down"}`}>
-                      {quote.percentChange != null
-                        ? `${up ? "+" : ""}${quote.percentChange.toFixed(2)}%`
-                        : "—"}
+                      {quote.percentChange != null ? (
+                        <>
+                          <span aria-hidden>{up ? "▲" : "▼"}</span>
+                          {up ? "+" : ""}
+                          {quote.percentChange.toFixed(2)}%
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </p>
                   </>
                 ) : (

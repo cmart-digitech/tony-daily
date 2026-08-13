@@ -59,6 +59,63 @@ html {
   color: var(--ink);
 }
 
+/* ── Reading Comfort (brief §24–25) — adapts the design via root attrs ── */
+html[data-textsize="large"] { font-size: 18px; }
+html[data-textsize="xlarge"] { font-size: 20px; }
+html[data-textsize="max"] { font-size: 22px; }
+
+html[data-spacing="compact"] body { line-height: 1.45; }
+html[data-spacing="spacious"] body { line-height: 1.85; }
+
+/* Density scales the gap/padding rhythm slightly. */
+html[data-density="compact"] { --density-scale: 0.85; }
+html[data-density="large"] { --density-scale: 1.2; }
+
+html[data-contrast="high"] {
+  --ink-secondary: var(--ink);
+  --ink-tertiary: #4a4a52;
+  --line: var(--line-strong);
+}
+html[data-contrast="high"].dark {
+  --ink-secondary: var(--ink);
+  --ink-tertiary: #b8b6b2;
+  --line: var(--line-strong);
+}
+
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Comfort Mode: ≥44px targets, roomier controls — still Tony Daily. */
+html[data-comfort="on"] button,
+html[data-comfort="on"] a[class*="rounded-sm"],
+html[data-comfort="on"] input,
+html[data-comfort="on"] select {
+  min-height: 44px;
+}
+html[data-comfort="on"] nav a {
+  font-size: 0.95rem;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+html[data-comfort="on"] :focus-visible {
+  outline-width: 3px;
+  outline-offset: 3px;
+}
+
+/* Focus Reading: hide secondary blocks, enlarge the reading measure. */
+.focus-reading [data-focus-hide] {
+  display: none;
+}
+.focus-reading article,
+.focus-reading .focus-body {
+  font-size: 1.08em;
+}
+
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;

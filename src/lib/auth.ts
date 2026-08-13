@@ -19,16 +19,40 @@ const SESSION_DAYS = 30;
 
 const encoder = new TextEncoder();
 
-export function authEnabled(): boolean {
+/** Password gate configured? */
+export function passwordAuthConfigured(): boolean {
   return Boolean(process.env.DASHBOARD_PASSWORD);
 }
 
+/** Google Sign-In configured? Requires an allowlist — no allowlist, no OAuth. */
+export function googleAuthConfigured(): boolean {
+  return Boolean(
+    process.env.GOOGLE_CLIENT_ID &&
+      process.env.GOOGLE_CLIENT_SECRET &&
+      process.env.AUTHORIZED_EMAILS,
+  );
+}
+
+export function authEnabled(): boolean {
+  return passwordAuthConfigured() || googleAuthConfigured();
+}
+
+/** Emails permitted to sign in with Google, normalised. */
+export function authorizedEmails(): string[] {
+  return (process.env.AUTHORIZED_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 /**
- * Key material mixes the password with CRON_SECRET so changing either
- * invalidates existing sessions.
+ * Session signing material. AUTH_SECRET when provided; otherwise derived
+ * from the configured credentials, so rotating any of them invalidates
+ * existing sessions.
  */
 function keyMaterial(): string {
-  return `td-auth:${process.env.DASHBOARD_PASSWORD ?? ""}:${process.env.CRON_SECRET ?? ""}`;
+  if (process.env.AUTH_SECRET) return `td-auth:${process.env.AUTH_SECRET}`;
+  return `td-auth:${process.env.DASHBOARD_PASSWORD ?? ""}:${process.env.GOOGLE_CLIENT_SECRET ?? ""}:${process.env.CRON_SECRET ?? ""}`;
 }
 
 async function hmacHex(message: string): Promise<string> {
@@ -69,6 +93,33 @@ export async function createSessionToken(
   const expiry = now + SESSION_DAYS * 24 * 60 * 60 * 1000;
   const sig = await hmacHex(String(expiry));
   return { token: `${expiry}.${sig}`, maxAgeSeconds: SESSION_DAYS * 24 * 60 * 60 };
+}
+
+/**
+ * Short-lived signed state for the OAuth round trip (CSRF protection).
+ * Format mirrors the session token: `<expiryEpochMs>.<hmac(expiry)>`.
+ */
+export async function createOauthState(now: number = Date.now()): Promise<string> {
+  const expiry = now + 10 * 60 * 1000;
+  return `${expiry}.${await hmacHex(`state:${expiry}`)}`;
+}
+
+export async function verifyOauthState(
+  state: string | undefined | null,
+  now: number = Date.now(),
+): Promise<boolean> {
+  if (!state) return false;
+  const dot = state.indexOf(".");
+  if (dot <= 0) return false;
+  const expiryPart = state.slice(0, dot);
+  const expiry = Number(expiryPart);
+  if (!Number.isFinite(expiry) || expiry < now) return false;
+  const expected = await hmacHex(`state:${expiryPart}`);
+  const sig = state.slice(dot + 1);
+  if (sig.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
+  return diff === 0;
 }
 
 export async function verifySessionToken(

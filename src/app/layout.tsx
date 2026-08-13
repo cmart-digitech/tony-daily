@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
 import MarketStrip from "@/components/MarketStrip";
+import MiniPlayer from "@/components/MiniPlayer";
 import SetupRequired from "@/components/SetupRequired";
 import { getPreferences } from "@/lib/prefs";
 import { t } from "@/lib/i18n";
@@ -43,8 +44,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     );
   }
   const lang = prefs.language;
+  const comfort = prefs.comfort;
   return (
-    <html lang={lang === "zh" ? "zh-HK" : "en"} suppressHydrationWarning>
+    <html
+      lang={lang === "zh" ? "zh-HK" : "en"}
+      suppressHydrationWarning
+      data-textsize={comfort.textSize !== "normal" ? comfort.textSize : undefined}
+      data-spacing={comfort.lineSpacing !== "comfortable" ? comfort.lineSpacing : undefined}
+      data-density={comfort.density !== "comfortable" ? comfort.density : undefined}
+      data-contrast={comfort.contrast !== "standard" ? comfort.contrast : undefined}
+      data-motion={comfort.motion !== "standard" ? comfort.motion : undefined}
+      data-comfort={comfort.comfortMode ? "on" : undefined}
+    >
       <body className="min-h-screen bg-bg text-ink antialiased">
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         {prefs.onboarded && (
@@ -54,6 +65,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </>
         )}
         <main id="main">{children}</main>
+        {prefs.onboarded && <MiniPlayer />}
         {prefs.onboarded && (
           <footer className="mt-16 border-t border-line">
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">

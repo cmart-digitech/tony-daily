@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import ArticleCard from "@/components/ArticleCard";
 import ArticleFactsPanel from "@/components/ArticleFactsPanel";
+import FocusReading from "@/components/FocusReading";
+import ListenButton from "@/components/ListenButton";
 import SaveButton from "@/components/SaveButton";
 import SummaryPanel from "@/components/SummaryPanel";
 import VerificationBadge from "@/components/VerificationBadge";
@@ -57,8 +59,19 @@ export default async function ArticlePage({
   const locations = entities.filter((e) => e.entityType === "location");
   const departments = entities.filter((e) => e.entityType === "department");
 
+  const widthClass =
+    prefs.comfort.articleWidth === "focused"
+      ? "max-w-2xl"
+      : prefs.comfort.articleWidth === "wide"
+        ? "max-w-6xl"
+        : "max-w-4xl";
+
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+    <div className={`mx-auto ${widthClass} px-4 py-8 pb-28 sm:px-6`}>
+      <FocusReading
+        label={zh === "zh" ? "專注閱讀" : "Focus Reading"}
+        exitLabel={zh === "zh" ? "退出專注閱讀" : "Exit Focus Reading"}
+      >
       {article.imageUrl && (
         <figure className={`mb-8 ${isVisual ? "-mx-4 sm:-mx-6" : ""}`}>
           <img
@@ -123,6 +136,14 @@ export default async function ArticlePage({
           initialSaved={saved}
           labels={{ save: t(lang, "save"), unsave: t(lang, "unsave") }}
         />
+        <ListenButton
+          segments={[
+            {
+              text: `${article.originalTitle}. ${article.excerpt ?? ""}`,
+              lang: article.originalLanguage === "zh-HK" ? "zh-HK" : "en-US",
+            },
+          ]}
+        />
         <Link
           href={`/chat?q=${encodeURIComponent(
             (lang === "zh" ? "同我講吓呢單新聞：" : "Tell me about this story: ") +
@@ -170,7 +191,7 @@ export default async function ArticlePage({
       )}
 
       {(companies.length > 0 || tickers.length > 0 || locations.length > 0 || departments.length > 0) && (
-        <section className="mt-10 border-t border-line pt-6">
+        <section className="mt-10 border-t border-line pt-6" data-focus-hide>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-ink-3">
             {t(lang, "relatedCompanies", { bilingual: true })}
           </h2>
@@ -237,7 +258,7 @@ export default async function ArticlePage({
       </section>
 
       {related.length > 0 && (
-        <section className="mt-10 border-t border-line pt-6">
+        <section className="mt-10 border-t border-line pt-6" data-focus-hide>
           <h2 className="mb-5 text-xs font-semibold uppercase tracking-widest text-ink-3">
             {t(lang, "relatedStories", { bilingual: true })}
           </h2>
@@ -248,6 +269,7 @@ export default async function ArticlePage({
           </div>
         </section>
       )}
+      </FocusReading>
     </div>
   );
 }

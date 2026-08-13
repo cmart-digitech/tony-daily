@@ -120,6 +120,10 @@ export async function runBatch(
  */
 const ADDITIVE_MIGRATIONS = [
   "ALTER TABLE articles ADD COLUMN translated_title TEXT",
+  "ALTER TABLE chat_conversations ADD COLUMN updated_at INTEGER",
+  "ALTER TABLE chat_conversations ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE chat_conversations ADD COLUMN archived INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE chat_conversations ADD COLUMN language TEXT",
 ];
 
 async function ensureSchema(client: Client): Promise<void> {
@@ -127,7 +131,7 @@ async function ensureSchema(client: Client): Promise<void> {
     // Probe the NEWEST table in the schema: if it exists, everything before
     // it does too. Probing an old table would skip later additions on
     // databases created before them.
-    await client.execute("SELECT 1 FROM article_facts LIMIT 1");
+    await client.execute("SELECT 1 FROM alert_events LIMIT 1");
   } catch {
     await client.executeMultiple(MIGRATION_SQL);
   }
@@ -257,6 +261,50 @@ const MIGRATION_SQL = `
       items_new INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS sync_source_idx ON sync_logs (source_id);
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL UNIQUE,
+      name TEXT,
+      picture TEXT,
+      created_at INTEGER NOT NULL,
+      last_login_at INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS user_memories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      content TEXT NOT NULL,
+      category TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS audio_briefs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date_key TEXT NOT NULL,
+      format TEXT NOT NULL,
+      language TEXT NOT NULL,
+      title TEXT NOT NULL,
+      transcript TEXT NOT NULL,
+      source_ids TEXT NOT NULL,
+      model TEXT NOT NULL,
+      word_count INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS audio_briefs_date_idx ON audio_briefs (date_key);
+    CREATE TABLE IF NOT EXISTS stock_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      symbol TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      threshold REAL NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      last_triggered_at INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS alert_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      alert_id INTEGER NOT NULL,
+      triggered_at INTEGER NOT NULL,
+      message TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS alert_events_alert_idx ON alert_events (alert_id);
     CREATE TABLE IF NOT EXISTS article_facts (
       article_id INTEGER PRIMARY KEY,
       project TEXT,

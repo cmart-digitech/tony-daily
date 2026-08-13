@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import LoginForm from "@/components/LoginForm";
-import { authEnabled } from "@/lib/auth";
+import { authEnabled, googleAuthConfigured, passwordAuthConfigured } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,10 @@ export default function LoginPage() {
         TONY<span className="text-accent">·</span>DAILY
       </h1>
       <Suspense>
-        <LoginForm />
+        <LoginForm
+          googleEnabled={googleAuthConfigured()}
+          passwordEnabled={passwordAuthConfigured()}
+        />
       </Suspense>
     </div>
   );

@@ -16,7 +16,9 @@ export default function Header({
     { href: "/markets", label: t(lang, "markets") },
     { href: "/property", label: t(lang, "property") },
     { href: "/architecture", label: t(lang, "architecture") },
+    { href: "/art", label: t(lang, "art") },
     { href: "/watchlist", label: t(lang, "watchlist") },
+    { href: "/audio", label: t(lang, "audio") },
     { href: "/saved", label: t(lang, "saved") },
   ];
   return (

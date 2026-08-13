@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkAlerts } from "@/lib/alerts";
 import { runIngest } from "@/lib/ingest";
 import { authorizeCron } from "../auth";
 
@@ -17,7 +18,9 @@ export async function GET(req: NextRequest) {
   if (auth) return auth;
   try {
     const results = await runIngest({ force: false });
-    return NextResponse.json({ ok: true, results });
+    // Market alerts ride the same schedule, using cached quotes only.
+    const alertsTriggered = await checkAlerts();
+    return NextResponse.json({ ok: true, results, alertsTriggered });
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "Ingestion failed." },

@@ -82,3 +82,46 @@ Minimal, architectural, information-rich. Bilingual (EN / 繁體中文 / 雙語)
 Light + dark + system themes with equal readability. Every module shows its
 data freshness. Quality over quantity — the product goal is maximum signal
 with minimum noise, not engagement.
+
+## Privacy rule (Phase 2)
+
+Personal history, memories and documents sit behind authenticated access.
+Never silently build a profile: memory is written only through the explicit
+memories API, and Tony can inspect, edit and delete all of it.
+
+## Voice rule (Phase 2)
+
+Speech input passes through exactly the same grounded retrieval pipeline as
+typed text — the transcript is shown, editable, and submitted to the same
+/api/chat. Raw microphone audio is never stored.
+
+## Audio rule (Phase 2)
+
+Audio may sound conversational; every factual claim in a script must come
+from the day's verified sources, whose ids are stored with the episode. An
+episode always carries its dateKey — old audio is labelled, never passed off
+as today's.
+
+## Art rule (Phase 2)
+
+Never invent auction information (estimates, bids, results, dates) and never
+present an AI reproduction of a real artwork. Auction structured data waits
+for a legitimate source (see docs/ART_SOURCE_POLICY.md).
+
+## Memory rule (Phase 2)
+
+Old conversation content is what was discussed, not what is true. Saved
+memories are preferences about how to answer. Neither ever overrides fresh
+retrieval; time-sensitive answers come only from current sources.
+
+## Drive rule (Phase 2)
+
+Least privilege always: identity scopes for sign-in, `drive.file` + Picker
+for Drive, tokens encrypted at rest, disconnect fully honoured
+(docs/DRIVE_INTEGRATION.md).
+
+## Accessibility rule (Phase 2)
+
+Reading Comfort, Comfort Mode, focus states and non-colour signals (▲/▼,
++/-) are product features, not optional polish. Never communicate a market
+move by colour alone.

@@ -8,6 +8,7 @@ const INTEREST_KEYS = [
   ["markets", "Markets & Equities", "市場與股票"],
   ["property", "Property & Real Estate", "地產"],
   ["architecture", "Architecture & Design", "建築與設計"],
+  ["art", "Art & Auctions", "藝術與拍賣"],
   ["infrastructure", "Infrastructure", "基建"],
   ["government", "Government & Policy", "政府與政策"],
   ["hk", "Hong Kong", "香港"],

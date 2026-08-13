@@ -20,6 +20,10 @@ const CATEGORY_KEYWORDS: Record<string, RegExp[]> = {
     /\b(infrastructure|railway|rail link|metro|mtr|airport|runway|bridge|tunnel|highway|reclamation|northern metropolis|kai tak|lantau)\b/i,
     /基建|鐵路|機場|跑道|大橋|隧道|填海|北部都會區|啟德/,
   ],
+  art: [
+    /\b(auction house|art auction|art fair|art basel|gallery|galleries|museum|exhibition|curator|artist|artwork|painting|sculpture|sotheby'?s|christie'?s|phillips auction|bonhams|biennale|frieze|art market)\b/i,
+    /拍賣行|藝術品|藝術家|畫廊|美術館|展覽|雙年展|藝術博覽|蘇富比|佳士得|富藝斯/,
+  ],
   markets: [
     /\b(stocks?|equit(y|ies)|hang seng|hsi|ipo|shares?|bond|earnings|dividend|market|index|nasdaq|s&p|dow|fed|interest rate|hkex|listing|profit warning|buyback)\b/i,
     /股市|恒指|恒生指數|港股|美股|上市|集資|供股|回購|派息|業績|加息|減息|債券/,
@@ -79,6 +83,7 @@ export function classifyCategory(
   const priority: Category[] = [
     "property",
     "architecture",
+    "art",
     "infrastructure",
     "markets",
     "government",

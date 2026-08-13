@@ -107,6 +107,78 @@ export function toMatchExpression(query: string): string | null {
   return tokens.map((t) => `"${t}"`).join(" ");
 }
 
+// ── Chat message index ─────────────────────────────────────────────────
+
+let chatFtsState: Promise<boolean> | null = null;
+
+/** Index over chat messages so conversation search never loads everything. */
+export function chatFtsReady(): Promise<boolean> {
+  if (!chatFtsState) {
+    chatFtsState = (async () => {
+      try {
+        const db = await getDb();
+        await db.run(sql`
+          CREATE VIRTUAL TABLE IF NOT EXISTS chat_fts
+          USING fts5(content, conversation_id UNINDEXED)
+        `);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+  }
+  return chatFtsState;
+}
+
+export async function indexChatMessage(
+  messageId: number,
+  conversationId: number,
+  content: string,
+): Promise<void> {
+  if (!(await chatFtsReady())) return;
+  const db = await getDb();
+  await db.run(sql`
+    INSERT INTO chat_fts (rowid, content, conversation_id)
+    VALUES (${messageId}, ${content}, ${conversationId})
+  `);
+}
+
+export async function removeConversationFromIndex(conversationId: number): Promise<void> {
+  if (!(await chatFtsReady())) return;
+  const db = await getDb();
+  await db.run(sql`DELETE FROM chat_fts WHERE conversation_id = ${conversationId}`);
+}
+
+/** Conversation ids whose messages match, best first. */
+export async function searchConversations(query: string, limit = 20): Promise<number[]> {
+  const match = toMatchExpression(query);
+  if (!match || !(await chatFtsReady())) return [];
+  const db = await getDb();
+  try {
+    // bm25() is a per-row auxiliary function and cannot sit inside a GROUP
+    // BY aggregate, so rank rows first and deduplicate in order here.
+    const rows = (await db.all(sql`
+      SELECT conversation_id AS id
+      FROM chat_fts
+      WHERE chat_fts MATCH ${match}
+      ORDER BY bm25(chat_fts)
+      LIMIT ${limit * 5}
+    `)) as { id: number }[];
+    const seen = new Set<number>();
+    const ordered: number[] = [];
+    for (const r of rows) {
+      if (!seen.has(r.id)) {
+        seen.add(r.id);
+        ordered.push(r.id);
+        if (ordered.length >= limit) break;
+      }
+    }
+    return ordered;
+  } catch {
+    return [];
+  }
+}
+
 /** bm25-ranked article ids for a match expression. */
 export async function searchIndex(match: string, limit: number): Promise<number[]> {
   if (!(await ftsReady())) return [];
