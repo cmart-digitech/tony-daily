@@ -5,9 +5,13 @@ name: Deploy landing page to GitHub Pages
 # NOTE: GitHub Pages requires either a PUBLIC repository or a paid plan
 # (Pro/Team/Enterprise) on a private one. This repository is public.
 #
-# The configure-pages step below enables Pages automatically, so no manual
-# setup is required. If it ever fails, set it by hand under
-# Settings → Pages → Build and deployment → Source: "GitHub Actions".
+# ONE-TIME SETUP (required once, in the browser):
+#   Settings → Pages → Build and deployment → Source: "GitHub Actions"
+#
+# The workflow token cannot turn Pages on by itself — configure-pages with
+# `enablement: true` fails with "Resource not accessible by integration" —
+# so this switch has to be flipped by a repository admin. After that, every
+# push to site/ publishes automatically.
 
 on:
   push:
@@ -36,10 +40,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions/configure-pages@v5
-        with:
-          # Turns Pages on for the repository if it is not already enabled,
-          # so no manual Settings → Pages step is needed.
-          enablement: true
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
