@@ -53,8 +53,8 @@ briefing time, theme), then runs the first feed ingestion.
 
 | Variable | Needed for | Without it |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Summaries, Daily Brief overview, Ask Tony Daily | Honest "AI not configured" states |
-| `ANTHROPIC_MODEL` | Optional model override (default `claude-sonnet-5`) | Default used |
+| One AI provider key (see [AI](#ai)) | Summaries, Daily Brief overview, Ask Tony Daily | Honest "AI not configured" states |
+| `AI_PROVIDER` / `AI_MODEL` | Force a provider / model | Auto-detected from the key present |
 | `MARKET_DATA_PROVIDER` | Provider selection (`twelvedata`) | Defaults to twelvedata |
 | `TWELVE_DATA_API_KEY` | Quotes, charts, symbol search, market strip | Honest "market data not configured" states |
 | `APP_TIMEZONE` | Display timezone (default `Asia/Hong_Kong`) | Default used |
@@ -218,10 +218,32 @@ never claimed real-time. Note: free Twelve Data plans cover US equities well;
 HK equities and some indexes may require a paid plan — anything unavailable
 shows an honest error, never a fake number.
 
-## AI (Claude)
+## AI
 
-All calls run server-side through `src/lib/ai`. Grounding rules (enforced in
-the system prompt and by construction):
+All calls run server-side through `src/lib/ai`. The model is **provider-agnostic**:
+`src/lib/ai/providers.ts` maps a provider id to an endpoint, default model and
+key variable, so switching models is configuration, not code. Anthropic uses
+its native SDK; every other provider is reached through its OpenAI-compatible
+`/chat/completions` endpoint.
+
+| Provider | Free tier | Key variable |
+|---|---|---|
+| Google Gemini | Free tier, no credit card | `GEMINI_API_KEY` |
+| Groq | Free tier, no credit card | `GROQ_API_KEY` |
+| xAI Grok | Credit-based | `XAI_API_KEY` |
+| OpenRouter | Free models, low daily cap | `OPENROUTER_API_KEY` |
+| Mistral | Free experiment tier | `MISTRAL_API_KEY` |
+| Anthropic Claude | ~$5 starter credits | `ANTHROPIC_API_KEY` |
+
+Set one key and the provider is detected automatically; `AI_PROVIDER` forces a
+choice and `AI_MODEL` overrides the default model. `AI_PROVIDER=custom` with
+`AI_BASE_URL` + `AI_API_KEY` points at any other OpenAI-compatible endpoint.
+Summaries are cached per `provider:model`, so switching models re-generates
+rather than serving another model's text. `/api/health` reports the active
+provider and model.
+
+Grounding rules are provider-independent (enforced in the system prompt and
+by construction):
 
 - retrieval before generation — the model only sees indexed sources + labelled quotes
 - citations `[n]` map to the exact retrieved articles and render as links

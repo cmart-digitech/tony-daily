@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb, schema } from "@/lib/db";
+import { aiModelId, aiProviderLabel, isAiConfigured } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,9 @@ export async function GET() {
     tursoUrlSet: Boolean(process.env.TURSO_DATABASE_URL),
     tursoTokenSet: Boolean(process.env.TURSO_AUTH_TOKEN),
     cronSecretSet: Boolean(process.env.CRON_SECRET),
-    aiConfigured: Boolean(process.env.ANTHROPIC_API_KEY),
+    aiConfigured: isAiConfigured(),
+    aiProvider: aiProviderLabel(),
+    aiModel: isAiConfigured() ? aiModelId() : null,
     marketDataConfigured: Boolean(process.env.TWELVE_DATA_API_KEY),
     timezone: process.env.APP_TIMEZONE ?? "Asia/Hong_Kong",
   };

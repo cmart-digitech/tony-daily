@@ -3,20 +3,80 @@ import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getSource } from "@/lib/sources/registry";
 import type { Quote } from "@/lib/market/types";
+import {
+  AiNotConfiguredError,
+  completeOpenAiCompatible,
+  providerApiKey,
+  providerBaseUrl,
+  providerModel,
+  PROVIDERS,
+  resolveProviderId,
+  type ChatMessage,
+} from "./providers";
 
 export type SummaryLevel = "30s" | "2min" | "deep";
 export type SummaryLanguage = "en" | "zh-HK";
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
-
 export function isAiConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  const id = resolveProviderId();
+  if (!providerApiKey(id)) return false;
+  // A custom endpoint additionally needs its base URL and model.
+  if (id === "custom") return Boolean(providerBaseUrl(id) && providerModel(id));
+  return true;
 }
 
-function getClient(): Anthropic {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error("AI is not configured. Set ANTHROPIC_API_KEY.");
-  return new Anthropic({ apiKey: key });
+/** Model identifier used for summary cache keys and brief attribution. */
+export function aiModelId(): string {
+  return `${resolveProviderId()}:${providerModel(resolveProviderId())}`;
+}
+
+/** Human-readable provider name, for setup guidance and error messages. */
+export function aiProviderLabel(): string {
+  return PROVIDERS[resolveProviderId()].label;
+}
+
+/**
+ * Single completion entry point. Anthropic uses its native SDK; every other
+ * provider speaks the OpenAI-compatible chat-completions API.
+ */
+async function callModel(options: {
+  system: string;
+  messages: ChatMessage[];
+  maxTokens: number;
+}): Promise<string> {
+  const { system, messages, maxTokens } = options;
+  const id = resolveProviderId();
+  const apiKey = providerApiKey(id);
+  if (!apiKey) {
+    throw new AiNotConfiguredError(
+      `AI is not configured. Set ${PROVIDERS[id].keyVars[0]} for ${PROVIDERS[id].label}.`,
+    );
+  }
+  const model = providerModel(id);
+
+  if (id === "anthropic") {
+    const client = new Anthropic({ apiKey });
+    const res = await client.messages.create({
+      model,
+      max_tokens: maxTokens,
+      temperature: 0.2,
+      system,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    });
+    return res.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .trim();
+  }
+
+  const baseUrl = providerBaseUrl(id);
+  if (!baseUrl) {
+    throw new AiNotConfiguredError(
+      "AI_BASE_URL must be set when AI_PROVIDER is 'custom'.",
+    );
+  }
+  return completeOpenAiCompatible({ baseUrl, apiKey, model, system, messages, maxTokens });
 }
 
 const GROUNDING_RULES = `You are the research assistant inside TONY DAILY, a private news and market intelligence dashboard for Tony Wong, a retired Hong Kong architect who follows markets, property, architecture and urban development.
@@ -75,18 +135,11 @@ ${a.excerpt ? `Excerpt: ${a.excerpt}` : "(headline + metadata only)"}`;
 }
 
 async function complete(system: string, user: string, maxTokens = 1200): Promise<string> {
-  const client = getClient();
-  const res = await client.messages.create({
-    model: MODEL,
-    max_tokens: maxTokens,
+  return callModel({
     system,
     messages: [{ role: "user", content: user }],
+    maxTokens,
   });
-  return res.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("")
-    .trim();
 }
 
 /** Summarise one article (or a cluster of sources for the same story). Cached. */
@@ -106,7 +159,7 @@ export async function summarizeArticle(options: {
         eq(schema.aiSummaries.contentHash, contentHash),
         eq(schema.aiSummaries.language, language),
         eq(schema.aiSummaries.level, level),
-        eq(schema.aiSummaries.model, MODEL),
+        eq(schema.aiSummaries.model, aiModelId()),
       ),
     )
     .get();
@@ -136,7 +189,7 @@ export async function summarizeArticle(options: {
       contentHash,
       language,
       level,
-      model: MODEL,
+      model: aiModelId(),
       summary,
       createdAt: Date.now(),
     })
@@ -179,21 +232,14 @@ ${question}
 
 Answer the question using only the material above, with [n] citations for every factual news claim. If the material is insufficient, say so plainly.`;
 
-  const client = getClient();
-  const res = await client.messages.create({
-    model: MODEL,
-    max_tokens: 1400,
+  const text = await callModel({
     system: GROUNDING_RULES,
     messages: [
       ...history.slice(-6).map((m) => ({ role: m.role, content: m.content })),
       { role: "user" as const, content: user },
     ],
+    maxTokens: 1400,
   });
-  const text = res.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("")
-    .trim();
 
   // Only keep citations actually referenced in the answer.
   const used = new Set(
@@ -219,6 +265,3 @@ export async function writeBriefOverview(options: {
   );
 }
 
-export function aiModelId(): string {
-  return MODEL;
-}
