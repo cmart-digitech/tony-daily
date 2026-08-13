@@ -1,0 +1,224 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { and, eq } from "drizzle-orm";
+import { getDb, schema } from "@/lib/db";
+import { getSource } from "@/lib/sources/registry";
+import type { Quote } from "@/lib/market/types";
+
+export type SummaryLevel = "30s" | "2min" | "deep";
+export type SummaryLanguage = "en" | "zh-HK";
+
+const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
+
+export function isAiConfigured(): boolean {
+  return Boolean(process.env.ANTHROPIC_API_KEY);
+}
+
+function getClient(): Anthropic {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error("AI is not configured. Set ANTHROPIC_API_KEY.");
+  return new Anthropic({ apiKey: key });
+}
+
+const GROUNDING_RULES = `You are the research assistant inside TONY DAILY, a private news and market intelligence dashboard for Tony Wong, a retired Hong Kong architect who follows markets, property, architecture and urban development.
+
+NON-NEGOTIABLE RULES:
+- Use ONLY the source material provided in this conversation. Never rely on your own memory for news, prices, statistics, dates or events.
+- If the provided material does not contain the answer, say exactly that the information is unavailable from the currently connected sources. Never guess or fill gaps.
+- Never invent a cause for a market movement. If sources do not state a cause, say the available sources do not establish one.
+- Separate FACT (from sources) from INTERPRETATION (your reading). Label interpretation explicitly, e.g. "Interpretation:".
+- Cite sources inline using bracketed numbers like [1], [2] that refer to the numbered source list you were given.
+- Preserve names, numbers, stock codes and dates exactly as in the sources.
+- Never give personalised buy/sell advice. If asked, explain you provide information, not financial advice.
+- If the user writes in Cantonese/Traditional Chinese, reply in natural Hong Kong written Traditional Chinese (繁體中文, zh-HK). If they write in English, reply in English.`;
+
+export interface ArticleForContext {
+  id: number;
+  title: string;
+  excerpt: string | null;
+  sourceId: string;
+  publishedAt: number | null;
+  canonicalUrl: string;
+  verificationStatus: string;
+}
+
+export interface Citation {
+  n: number;
+  articleId: number;
+  title: string;
+  source: string;
+  url: string;
+  publishedAt: number | null;
+}
+
+export function buildSourceBlock(articles: ArticleForContext[]): {
+  block: string;
+  citations: Citation[];
+} {
+  const citations: Citation[] = articles.map((a, i) => ({
+    n: i + 1,
+    articleId: a.id,
+    title: a.title,
+    source: getSource(a.sourceId)?.name ?? a.sourceId,
+    url: a.canonicalUrl,
+    publishedAt: a.publishedAt,
+  }));
+  const block = articles
+    .map((a, i) => {
+      const src = getSource(a.sourceId);
+      const date = a.publishedAt ? new Date(a.publishedAt).toISOString() : "unknown date";
+      return `[${i + 1}] ${a.title}
+Source: ${src?.name ?? a.sourceId} (authority tier ${src?.tier ?? "?"}) · Published: ${date} · Verification: ${a.verificationStatus}
+${a.excerpt ? `Excerpt: ${a.excerpt}` : "(headline + metadata only)"}`;
+    })
+    .join("\n\n");
+  return { block, citations };
+}
+
+async function complete(system: string, user: string, maxTokens = 1200): Promise<string> {
+  const client = getClient();
+  const res = await client.messages.create({
+    model: MODEL,
+    max_tokens: maxTokens,
+    system,
+    messages: [{ role: "user", content: user }],
+  });
+  return res.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+}
+
+/** Summarise one article (or a cluster of sources for the same story). Cached. */
+export async function summarizeArticle(options: {
+  contentHash: string;
+  articles: ArticleForContext[];
+  level: SummaryLevel;
+  language: SummaryLanguage;
+}): Promise<string> {
+  const { contentHash, articles, level, language } = options;
+  const db = await getDb();
+  const cached = await db
+    .select()
+    .from(schema.aiSummaries)
+    .where(
+      and(
+        eq(schema.aiSummaries.contentHash, contentHash),
+        eq(schema.aiSummaries.language, language),
+        eq(schema.aiSummaries.level, level),
+        eq(schema.aiSummaries.model, MODEL),
+      ),
+    )
+    .get();
+  if (cached) return cached.summary;
+
+  const { block } = buildSourceBlock(articles);
+  const levelInstruction =
+    level === "30s"
+      ? "Write a 30-second summary: 2–3 short factual bullet points only."
+      : level === "2min"
+        ? "Write a concise 2-minute summary: one tight paragraph (4–6 sentences) covering the essentials and why it matters."
+        : "Write a deep-dive synthesis using every provided source: what happened, verified details, differences between sources, and clearly-labelled interpretation. Use short sections.";
+  const langInstruction =
+    language === "zh-HK"
+      ? "Respond in Traditional Chinese as used in Hong Kong (繁體中文). Keep company names, stock codes and figures exactly as in the sources."
+      : "Respond in English.";
+
+  const summary = await complete(
+    GROUNDING_RULES,
+    `${levelInstruction}\n${langInstruction}\nNote that this is an AI-assisted summary of the sources below — do not add information that is not in them.\n\nSOURCES:\n\n${block}`,
+    level === "deep" ? 1600 : 700,
+  );
+
+  await db
+    .insert(schema.aiSummaries)
+    .values({
+      contentHash,
+      language,
+      level,
+      model: MODEL,
+      summary,
+      createdAt: Date.now(),
+    })
+    .run();
+  return summary;
+}
+
+/** Grounded Q&A for Ask Tony Daily. */
+export async function answerQuestion(options: {
+  question: string;
+  articles: ArticleForContext[];
+  quotes: Quote[];
+  history: { role: "user" | "assistant"; content: string }[];
+}): Promise<{ text: string; citations: Citation[] }> {
+  const { question, articles, quotes, history } = options;
+  const { block, citations } = buildSourceBlock(articles);
+
+  const quoteBlock = quotes.length
+    ? quotes
+        .map((q) => {
+          const price = q.price != null ? `${q.currency ?? ""} ${q.price}` : "price unavailable";
+          const chg =
+            q.percentChange != null
+              ? `${q.percentChange > 0 ? "+" : ""}${q.percentChange.toFixed(2)}%`
+              : "change unavailable";
+          return `${q.symbol} (${q.name ?? "?"}): ${price}, ${chg}, ${q.entitlement} data fetched ${new Date(q.fetchedAt).toISOString()}`;
+        })
+        .join("\n")
+    : "No market data available for this question.";
+
+  const user = `INDEXED NEWS SOURCES (the only news you may use):
+
+${block || "No relevant articles found in the currently connected sources."}
+
+MARKET DATA (${quotes.length ? "delayed/end-of-day as labelled" : "none available"}):
+${quoteBlock}
+
+QUESTION:
+${question}
+
+Answer the question using only the material above, with [n] citations for every factual news claim. If the material is insufficient, say so plainly.`;
+
+  const client = getClient();
+  const res = await client.messages.create({
+    model: MODEL,
+    max_tokens: 1400,
+    system: GROUNDING_RULES,
+    messages: [
+      ...history.slice(-6).map((m) => ({ role: m.role, content: m.content })),
+      { role: "user" as const, content: user },
+    ],
+  });
+  const text = res.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+
+  // Only keep citations actually referenced in the answer.
+  const used = new Set(
+    [...text.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1])),
+  );
+  return { text, citations: citations.filter((c) => used.has(c.n)) };
+}
+
+/** Short grounded editor's overview for the Daily Brief. */
+export async function writeBriefOverview(options: {
+  articles: ArticleForContext[];
+  language: SummaryLanguage;
+  dateLabel: string;
+}): Promise<string> {
+  const { articles, language, dateLabel } = options;
+  const { block } = buildSourceBlock(articles);
+  const langInstruction =
+    language === "zh-HK" ? "Write in Traditional Chinese (香港繁體中文)." : "Write in English.";
+  return complete(
+    GROUNDING_RULES,
+    `Write a calm 3–5 sentence morning overview for Tony's Daily Brief for ${dateLabel}, weaving together only the most important of the sources below. ${langInstruction} Include [n] citations. No hype, no speculation, no advice.\n\nSOURCES:\n\n${block}`,
+    600,
+  );
+}
+
+export function aiModelId(): string {
+  return MODEL;
+}

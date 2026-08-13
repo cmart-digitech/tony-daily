@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Light — white/off-white, charcoal ink, fine grey separators */
+  --bg: #faf9f7;
+  --bg-elevated: #ffffff;
+  --bg-subtle: #f1efeb;
+  --ink: #17171a;
+  --ink-secondary: #55555c;
+  --ink-tertiary: #8a8a92;
+  --line: #e4e2dd;
+  --line-strong: #c9c7c1;
+  --accent: #9a3d1f; /* restrained architectural terracotta */
+  --up: #146c43;
+  --down: #b02a37;
+  --neutral-badge: #6b7280;
+}
+
+.dark {
+  /* Dark — near-black charcoal, off-white type, muted separators */
+  --bg: #101013;
+  --bg-elevated: #17171b;
+  --bg-subtle: #1e1e23;
+  --ink: #e9e7e2;
+  --ink-secondary: #a4a2a0;
+  --ink-tertiary: #75747a;
+  --line: #26262c;
+  --line-strong: #3a3a42;
+  --accent: #d0764f;
+  --up: #4cae7f;
+  --down: #e5636f;
+  --neutral-badge: #9ca3af;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-elevated: var(--bg-elevated);
+  --color-subtle: var(--bg-subtle);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-secondary);
+  --color-ink-3: var(--ink-tertiary);
+  --color-line: var(--line);
+  --color-line-2: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "PingFang HK", "Microsoft JhengHei",
+    "Noto Sans TC", sans-serif;
+  --font-serif: Georgia, "Times New Roman", "PingFang HK", "Noto Serif TC",
+    "Microsoft JhengHei", serif;
+  --font-mono: "SF Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+}
+
+html {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* thin editorial scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-subtle) 25%,
+    var(--line) 50%,
+    var(--bg-subtle) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-sheen 1.4s ease infinite;
+}
+
+@keyframes skeleton-sheen {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
