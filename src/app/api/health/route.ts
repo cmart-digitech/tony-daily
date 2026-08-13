@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb, schema } from "@/lib/db";
 import { aiModelId, aiProviderLabel, isAiConfigured } from "@/lib/ai";
+import { authEnabled } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export async function GET() {
     tursoUrlSet: Boolean(process.env.TURSO_DATABASE_URL),
     tursoTokenSet: Boolean(process.env.TURSO_AUTH_TOKEN),
     cronSecretSet: Boolean(process.env.CRON_SECRET),
+    authEnabled: authEnabled(),
     aiConfigured: isAiConfigured(),
     aiProvider: aiProviderLabel(),
     aiModel: isAiConfigured() ? aiModelId() : null,

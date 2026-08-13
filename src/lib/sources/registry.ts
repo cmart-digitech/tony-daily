@@ -2,8 +2,9 @@
  * Config-driven source registry.
  *
  * EVERY feedUrl below was verified live (HTTP 200, valid RSS with items)
- * during development on 2026-08-12. Do not add endpoints without verifying
- * them first — never guess a feed URL.
+ * before being committed (original set 2026-08-12; HKEX and SFC feeds
+ * 2026-08-13). Do not add endpoints without verifying them first — never
+ * guess a feed URL.
  *
  * authority: 0–100. Government/regulator ≈ 95–100, public broadcaster ≈ 90,
  * quality journalism ≈ 80–88, specialist design media ≈ 70–78.
@@ -116,6 +117,53 @@ export const SOURCES: SourceConfig[] = [
     feedUrl:
       "https://www.news.gov.hk/en/categories/finance/html/articlelist.rss.xml",
     homepage: "https://www.news.gov.hk/en/categories/finance/",
+    primary: true,
+    enabled: true,
+  },
+
+  {
+    id: "hkex-news",
+    name: "HKEX — News Releases",
+    nameZh: "香港交易所 — 新聞稿",
+    language: "en",
+    region: "hk",
+    type: "rss",
+    tier: "A",
+    authority: 100,
+    categories: ["markets", "hk"],
+    feedUrl: "https://www.hkex.com.hk/Services/RSS-Feeds/News-Releases?sc_lang=en",
+    homepage: "https://www.hkex.com.hk/News/News-Release?sc_lang=en",
+    primary: true,
+    enabled: true,
+  },
+  {
+    id: "hkex-regulatory",
+    name: "HKEX — Regulatory Announcements",
+    nameZh: "香港交易所 — 監管通告",
+    language: "en",
+    region: "hk",
+    type: "rss",
+    tier: "A",
+    authority: 100,
+    categories: ["markets", "hk"],
+    feedUrl:
+      "https://www.hkex.com.hk/Services/RSS-Feeds/regulatory-announcements?sc_lang=en",
+    homepage: "https://www.hkex.com.hk/News/Regulatory-Announcements?sc_lang=en",
+    primary: true,
+    enabled: true,
+  },
+  {
+    id: "sfc-press",
+    name: "SFC — Press Releases",
+    nameZh: "證監會 — 新聞稿",
+    language: "en",
+    region: "hk",
+    type: "rss",
+    tier: "A",
+    authority: 100,
+    categories: ["markets", "government", "hk"],
+    feedUrl: "https://www.sfc.hk/en/RSS-Feeds/Press-releases",
+    homepage: "https://www.sfc.hk/en/News-and-announcements/News/",
     primary: true,
     enabled: true,
   },
