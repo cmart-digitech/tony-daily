@@ -5,13 +5,13 @@ name: Deploy landing page to GitHub Pages
 # NOTE: GitHub Pages requires either a PUBLIC repository or a paid plan
 # (Pro/Team/Enterprise) on a private one. This repository is public.
 #
-# ONE-TIME SETUP (required once, in the browser):
+# ONE-TIME SETUP — already done for this repository:
 #   Settings → Pages → Build and deployment → Source: "GitHub Actions"
 #
-# The workflow token cannot turn Pages on by itself — configure-pages with
-# `enablement: true` fails with "Resource not accessible by integration" —
-# so this switch has to be flipped by a repository admin. After that, every
-# push to site/ publishes automatically.
+# That switch cannot be flipped from a workflow: configure-pages with
+# `enablement: true` fails with "Resource not accessible by integration",
+# because enabling publishing is an admin action. It only needs doing once;
+# every push to site/ now publishes automatically.
 
 on:
   push:
