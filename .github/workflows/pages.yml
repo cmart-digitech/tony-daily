@@ -3,12 +3,11 @@ name: Deploy landing page to GitHub Pages
 # Publishes the static project page in site/ to GitHub Pages.
 #
 # NOTE: GitHub Pages requires either a PUBLIC repository or a paid plan
-# (Pro/Team/Enterprise) on a private one. If this repo stays private on a
-# free account, enabling Pages will fail — make the repo public, or move
-# the site/ folder into its own public repository.
+# (Pro/Team/Enterprise) on a private one. This repository is public.
 #
-# One-time setup: repository Settings → Pages → Build and deployment →
-# Source: "GitHub Actions". Then this workflow publishes on every push.
+# The configure-pages step below enables Pages automatically, so no manual
+# setup is required. If it ever fails, set it by hand under
+# Settings → Pages → Build and deployment → Source: "GitHub Actions".
 
 on:
   push:
@@ -37,6 +36,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions/configure-pages@v5
+        with:
+          # Turns Pages on for the repository if it is not already enabled,
+          # so no manual Settings → Pages step is needed.
+          enablement: true
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
