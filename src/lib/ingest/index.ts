@@ -6,7 +6,6 @@ import { classifyCategory, classifyRegion } from "./classify";
 import { extractEntities } from "./entities";
 import { fetchOgImages } from "./images";
 import { backfillIndex, indexArticles } from "@/lib/search/fts";
-import { translateRecentHeadlines } from "@/lib/ai/translate";
 import {
   buildIdf,
   canonicalizeUrl,
@@ -310,7 +309,10 @@ export async function runIngest(options?: { force?: boolean }): Promise<IngestRe
 
   await enrichMissingImages();
   await backfillIndex(); // catch up any articles that predate the FTS index
-  await translateRecentHeadlines(); // bounded; also enables cross-language clustering
+  // NOTE: headline translation deliberately does NOT run here. Ingest fires
+  // every ~30 minutes; translating on each run consumed the free AI quota
+  // and starved the interactive features (chat, summaries, facts). It runs
+  // once daily from the brief cron instead — see /api/cron/brief.
   await reclassifyRecentArticles();
   await clusterRecentArticles();
   await applyCorroboration();

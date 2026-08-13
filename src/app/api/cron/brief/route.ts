@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateDailyBrief } from "@/lib/brief";
 import { runIngest } from "@/lib/ingest";
 import { sendBriefToTelegram } from "@/lib/notify/telegram";
+import { translateRecentHeadlines } from "@/lib/ai/translate";
 import { authorizeCron } from "../auth";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,9 @@ export async function GET(req: NextRequest) {
   if (auth) return auth;
   try {
     await runIngest({ force: false });
+    // Once daily, here rather than per-ingest: headline translation shares
+    // the free AI quota with chat, summaries and facts extraction.
+    await translateRecentHeadlines(20);
     const brief = await generateDailyBrief();
 
     // Optional morning delivery — configured deployments only.
