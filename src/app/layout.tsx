@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
 import MarketStrip from "@/components/MarketStrip";
+import SetupRequired from "@/components/SetupRequired";
 import { getPreferences } from "@/lib/prefs";
 import { t } from "@/lib/i18n";
 
@@ -24,7 +25,23 @@ const themeScript = `
 `;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const prefs = await getPreferences();
+  // A deployment with no reachable database should explain itself rather
+  // than surfacing an opaque 500 from every route.
+  let prefs: Awaited<ReturnType<typeof getPreferences>>;
+  try {
+    prefs = await getPreferences();
+  } catch (err) {
+    return (
+      <html lang="en" suppressHydrationWarning>
+        <body className="min-h-screen bg-bg text-ink antialiased">
+          <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+          <SetupRequired
+            detail={err instanceof Error ? err.message : "Unknown database error."}
+          />
+        </body>
+      </html>
+    );
+  }
   const lang = prefs.language;
   return (
     <html lang={lang === "zh" ? "zh-HK" : "en"} suppressHydrationWarning>
