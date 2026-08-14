@@ -39,9 +39,37 @@ identically elsewhere. Setting `AI_PROVIDER` explicitly pins one provider
 and disables failover.
 
 Practical effect: adding a second free key roughly removes daily-quota
-outages. Groq's free tier (verified 13 Aug 2026: 30 req/min, 14,400
-req/day, no credit card) is far larger than Gemini's and makes a good
-second provider.
+outages.
+
+### Which second provider — Groq is not available on this network
+
+Groq's free tier (verified 13 Aug 2026: 30 req/min, 14,400 req/day, no
+credit card) is far larger than Gemini's and would be the obvious choice.
+**It cannot be used from this network.** Both `api.groq.com` and the
+`console.groq.com` signup pages return `HTTP 403 "Access denied. Please
+check your network settings."`, so no key can be created in the first
+place. Groq support treats this as a regional/IP block rather than an
+account problem.
+
+Reachability from this project's network, all probed 14 Aug 2026:
+
+| Provider | Result | Verdict |
+|---|---|---|
+| OpenRouter | HTTP 200 | Reachable — **recommended second provider** |
+| Mistral | HTTP 401 (no key sent) | Reachable |
+| Together AI | HTTP 401 (no key sent) | Reachable |
+| xAI | HTTP 401 (no key sent) | Reachable, but paid |
+| Groq | HTTP 403 access denied | **Blocked, API and console** |
+
+OpenRouter is therefore the second provider to configure: free models, no
+credit card, ~50 requests/day. That daily cap is far smaller than Groq's,
+so it is a safety net for a Gemini outage rather than a co-primary — but a
+free tier that answers beats a larger one that refuses the connection.
+
+Note the production app runs on Vercel in Tokyo, not on this network, so
+Groq's API might well be reachable from the deployed functions. It stays
+unusable regardless, because the key has to be created through the blocked
+console first.
 
 ## Paid options awaiting Tony's decision
 

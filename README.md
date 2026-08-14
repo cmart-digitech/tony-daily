@@ -239,11 +239,25 @@ its native SDK; every other provider is reached through its OpenAI-compatible
 | Provider | Free tier | Key variable |
 |---|---|---|
 | Google Gemini | Free tier, no credit card | `GEMINI_API_KEY` |
-| Groq | Free tier, no credit card | `GROQ_API_KEY` |
-| xAI Grok | Credit-based | `XAI_API_KEY` |
-| OpenRouter | Free models, low daily cap | `OPENROUTER_API_KEY` |
+| Groq | Free tier, no credit card — but see the reachability note below | `GROQ_API_KEY` |
+| OpenRouter | Free models, ~50 req/day, no card | `OPENROUTER_API_KEY` |
 | Mistral | Free experiment tier | `MISTRAL_API_KEY` |
+| xAI Grok | Credit-based, paid | `XAI_API_KEY` |
 | Anthropic Claude | ~$5 starter credits | `ANTHROPIC_API_KEY` |
+
+Configure **two** keys where possible: when one free tier reaches its daily
+quota the next provider in the chain serves the request instead of the
+feature going dark. Setting `AI_PROVIDER` pins one provider and disables
+failover.
+
+> **Groq reachability.** Groq answers `HTTP 403 "Access denied. Please check
+> your network settings."` from some networks and regions — on both
+> `api.groq.com` and the `console.groq.com` signup pages, so a key cannot
+> even be created there. Verified from this project's network on
+> 14 Aug 2026; OpenRouter, Mistral, xAI and Together were all reachable from
+> the same network at the same moment. Groq support treats this as a
+> per-region/IP block. Where it is reachable it remains an excellent free
+> tier — where it is not, use OpenRouter or Mistral as the second provider.
 
 Set one key and the provider is detected automatically; `AI_PROVIDER` forces a
 choice and `AI_MODEL` overrides the default model. `AI_PROVIDER=custom` with
