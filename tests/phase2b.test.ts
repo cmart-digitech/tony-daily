@@ -14,8 +14,9 @@ delete process.env.TURSO_DATABASE_URL;
 const { getDb } = await import("@/lib/db");
 const { evaluateAlert, describeAlert } = await import("@/lib/alerts");
 const { parseScript } = await import("@/lib/ai/audio");
-const { chatFtsReady, indexChatMessage, searchConversations, removeConversationFromIndex } =
+const { chatFtsReady, indexChatMessage, searchConversations, removeConversationFromIndex, backfillChatIndex } =
   await import("@/lib/search/fts");
+const { schema: dbSchema } = await import("@/lib/db");
 const { getPreferences, savePreferences, trackVisit } = await import("@/lib/prefs");
 
 beforeAll(async () => {
@@ -126,6 +127,30 @@ describe("chat message search index", () => {
   it("drops a conversation's messages from the index on delete", async () => {
     await removeConversationFromIndex(10);
     expect(await searchConversations("tencent earnings")).toEqual([]);
+  });
+
+  it("backfills messages written before the index existed", async () => {
+    // A message inserted straight into the table, as pre-Phase-2B rows were.
+    const db = await getDb();
+    await db
+      .insert(dbSchema.chatConversations)
+      .values({ id: 77, title: "Legacy chat", createdAt: Date.now() })
+      .run();
+    await db
+      .insert(dbSchema.chatMessages)
+      .values({
+        id: 7700,
+        conversationId: 77,
+        role: "user",
+        content: "Kai Tak stadium redevelopment questions",
+        createdAt: Date.now(),
+      })
+      .run();
+
+    expect(await searchConversations("stadium redevelopment")).toEqual([]);
+    const indexed = await backfillChatIndex();
+    expect(indexed).toBeGreaterThan(0);
+    expect(await searchConversations("stadium redevelopment")).toContain(77);
   });
 });
 

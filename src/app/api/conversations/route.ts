@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { desc, eq, like, or, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { searchConversations } from "@/lib/search/fts";
+import { backfillChatIndex, searchConversations } from "@/lib/search/fts";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,8 @@ export async function GET(req: NextRequest) {
 
   let matchIds: number[] | null = null;
   if (q) {
+    // Cover messages written before the index existed.
+    await backfillChatIndex();
     matchIds = await searchConversations(q);
     if (matchIds.length === 0) {
       // CJK queries (or FTS-less builds): match message or title text directly.

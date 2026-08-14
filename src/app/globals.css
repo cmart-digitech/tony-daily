@@ -67,9 +67,18 @@ html[data-textsize="max"] { font-size: 22px; }
 html[data-spacing="compact"] body { line-height: 1.45; }
 html[data-spacing="spacious"] body { line-height: 1.85; }
 
-/* Density scales the gap/padding rhythm slightly. */
-html[data-density="compact"] { --density-scale: 0.85; }
-html[data-density="large"] { --density-scale: 1.2; }
+/* Density changes the vertical rhythm between stories and sections.
+   Applied to the real layout containers rather than a token nothing reads. */
+html[data-density="compact"] main section { padding-top: 2rem; padding-bottom: 2rem; }
+html[data-density="compact"] main .space-y-6 > * + * { margin-top: 1rem; }
+html[data-density="compact"] main .space-y-8 > * + * { margin-top: 1.25rem; }
+html[data-density="compact"] main article { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+html[data-density="large"] main section { padding-top: 4rem; padding-bottom: 4rem; }
+html[data-density="large"] main .space-y-6 > * + * { margin-top: 2.5rem; }
+html[data-density="large"] main .space-y-8 > * + * { margin-top: 3rem; }
+html[data-density="large"] main article { padding-top: 1rem; padding-bottom: 1rem; }
+html[data-density="large"] main .gap-y-10 { row-gap: 4rem; }
 
 html[data-contrast="high"] {
   --ink-secondary: var(--ink);

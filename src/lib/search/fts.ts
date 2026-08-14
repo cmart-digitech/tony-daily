@@ -143,6 +143,30 @@ export async function indexChatMessage(
   `);
 }
 
+/**
+ * Index messages that predate the chat index (or were written while it was
+ * unavailable), so conversation search covers the whole history rather than
+ * only what arrived after the feature shipped.
+ */
+export async function backfillChatIndex(limit = 500): Promise<number> {
+  if (!(await chatFtsReady())) return 0;
+  const db = await getDb();
+  const missing = (await db.all(sql`
+    SELECT id, conversation_id AS conversationId, content
+    FROM chat_messages
+    WHERE id NOT IN (SELECT rowid FROM chat_fts)
+    ORDER BY id DESC
+    LIMIT ${limit}
+  `)) as { id: number; conversationId: number; content: string }[];
+  for (const m of missing) {
+    await db.run(sql`
+      INSERT INTO chat_fts (rowid, content, conversation_id)
+      VALUES (${m.id}, ${m.content}, ${m.conversationId})
+    `);
+  }
+  return missing.length;
+}
+
 export async function removeConversationFromIndex(conversationId: number): Promise<void> {
   if (!(await chatFtsReady())) return;
   const db = await getDb();

@@ -58,13 +58,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     >
       <body className="min-h-screen bg-bg text-ink antialiased">
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {/* Keyboard users land here first and can jump past the nav. */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:border focus:border-accent focus:bg-elevated focus:px-4 focus:py-2 focus:text-sm focus:text-ink"
+        >
+          {lang === "zh" ? "跳至主要內容" : "Skip to main content"}
+        </a>
         {prefs.onboarded && (
           <>
             <Header lang={lang} theme={prefs.theme} />
             <MarketStrip />
           </>
         )}
-        <main id="main">{children}</main>
+        <main id="main" tabIndex={-1}>
+          {children}
+        </main>
         {prefs.onboarded && <MiniPlayer />}
         {prefs.onboarded && (
           <footer className="mt-16 border-t border-line">

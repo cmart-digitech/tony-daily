@@ -8,6 +8,7 @@ const INTERESTS = [
   { key: "markets", en: "Markets & Equities", zh: "市場與股票" },
   { key: "property", en: "Property & Real Estate", zh: "地產" },
   { key: "architecture", en: "Architecture & Built Environment", zh: "建築" },
+  { key: "art", en: "Art & Auctions", zh: "藝術與拍賣" },
   { key: "infrastructure", en: "Infrastructure", zh: "基建" },
   { key: "hk", en: "Hong Kong", zh: "香港" },
   { key: "china", en: "Greater China", zh: "大中華" },
@@ -71,7 +72,11 @@ export default function OnboardingFlow({ marketConfigured }: { marketConfigured:
     setFinishing(true);
     const interests: Record<string, number> = {};
     for (const i of INTERESTS) {
-      interests[i.key] = selected.has(i.key) ? (["markets", "property", "architecture"].includes(i.key) ? 85 : 70) : 35;
+      interests[i.key] = selected.has(i.key)
+        ? ["markets", "property", "architecture"].includes(i.key)
+          ? 85
+          : 70
+        : 35;
     }
     await fetch("/api/preferences", {
       method: "PUT",

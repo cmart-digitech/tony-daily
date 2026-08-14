@@ -38,6 +38,7 @@ export default async function WatchlistPage() {
       <AlertsPanel
         symbols={items.map((i) => i.symbol)}
         telegramConfigured={telegramConfigured()}
+        marketDataConfigured={isMarketDataConfigured()}
         zh={lang === "zh"}
       />
       {news.length > 0 && (

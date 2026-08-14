@@ -66,6 +66,7 @@ export default async function TodayPage() {
     { key: "hk", en: "Hong Kong stories", zhL: "項香港新聞", articles: fresh.filter((a) => a.region === "hk" && !watchNewIds.has(a.id) && a.category !== "property" && a.category !== "architecture").slice(0, 3) },
     { key: "property", en: "property items", zhL: "項地產新聞", articles: fresh.filter((a) => a.category === "property").slice(0, 3) },
     { key: "architecture", en: "architecture stories", zhL: "項建築新聞", articles: fresh.filter((a) => a.category === "architecture" || a.category === "infrastructure").slice(0, 3) },
+    { key: "art", en: "art items", zhL: "項藝術新聞", articles: fresh.filter((a) => a.category === "art").slice(0, 3) },
   ];
 
   // Every brief section resolves from the same cached pool, so this costs

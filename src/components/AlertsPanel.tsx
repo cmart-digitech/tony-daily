@@ -20,10 +20,13 @@ interface AlertItem {
 export default function AlertsPanel({
   symbols,
   telegramConfigured,
+  marketDataConfigured,
   zh,
 }: {
   symbols: string[];
   telegramConfigured: boolean;
+  /** Alerts are evaluated against quotes; without a provider they cannot fire. */
+  marketDataConfigured: boolean;
   zh: boolean;
 }) {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
@@ -74,7 +77,14 @@ export default function AlertsPanel({
       <h2 className="mb-4 border-b border-line pb-2 text-xs font-semibold uppercase tracking-widest text-ink">
         {zh ? "市場提示" : "Market Alerts · 市場提示"}
       </h2>
-      {!telegramConfigured && (
+      {!marketDataConfigured && (
+        <p className="mb-4 border border-line-2 bg-subtle px-4 py-3 text-sm text-ink-2">
+          {zh
+            ? "未設定市場數據，所以提示唔會被觸發 — 系統唔會用估算價格。設定 TWELVE_DATA_API_KEY 之後就會開始檢查。"
+            : "Market data is not configured, so alerts cannot trigger — the system will never guess a price. Set TWELVE_DATA_API_KEY and checks begin on the next refresh."}
+        </p>
+      )}
+      {marketDataConfigured && !telegramConfigured && (
         <p className="mb-4 text-xs text-ink-3">
           {zh
             ? "提示會記錄喺度；設定 Telegram 之後仲會即時通知你。"
