@@ -80,6 +80,37 @@ describe("audio script parsing", () => {
     expect(segments).toHaveLength(1);
     expect(segments[0].text).toBe("Good morning.");
   });
+
+  it("trims a sentence the model was cut off mid-way through", () => {
+    // Observed live: the budget ran out and the anchor stopped mid-figure.
+    const segments = parseScript(
+      "Good morning, Tony.\n\nCK Hutchison reported a large profit rise. MTR net profit more than doubled to 15.87 billion",
+      "quick",
+    );
+    expect(segments).toHaveLength(2);
+    expect(segments[1].text).toBe("CK Hutchison reported a large profit rise.");
+  });
+
+  it("drops a trailing paragraph that is entirely a fragment", () => {
+    const segments = parseScript("Good morning, Tony.\n\nAnd in", "quick");
+    expect(segments).toHaveLength(1);
+  });
+
+  it("does not mistake a decimal point for a sentence end", () => {
+    const segments = parseScript(
+      "Good morning.\n\nProfit rose to 15.87 billion dollars, the company said. Volumes were flat and",
+      "quick",
+    );
+    expect(segments[1].text).toBe(
+      "Profit rose to 15.87 billion dollars, the company said.",
+    );
+  });
+
+  it("leaves a properly finished script untouched", () => {
+    const segments = parseScript("Good morning.\n\nThat is your brief for today.", "quick");
+    expect(segments).toHaveLength(2);
+    expect(segments[1].text).toBe("That is your brief for today.");
+  });
 });
 
 describe("chat message search index", () => {

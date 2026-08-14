@@ -25,6 +25,19 @@ export interface AudioSegment {
   text: string;
 }
 
+/**
+ * Token budgets are far above the visible word count on purpose: reasoning
+ * models spend a large share of the budget thinking before emitting any
+ * script, and an exhausted budget produces a briefing that stops
+ * mid-sentence.
+ */
+const TOKEN_BUDGET: Record<AudioFormat, number> = {
+  quick: 6000,
+  morning: 10000,
+  deep: 16000,
+  dialogue: 10000,
+};
+
 const FORMAT_SPECS: Record<AudioFormat, { words: string; style: string; title: string }> = {
   quick: {
     words: "about 260-320 words (~2 minutes)",
@@ -98,7 +111,30 @@ export function parseScript(raw: string, format: AudioFormat): AudioSegment[] {
       text,
     });
   }
-  return segments;
+  return dropTruncatedTail(segments);
+}
+
+/** A briefing that stops mid-sentence sounds broken read aloud. */
+const SENTENCE_END = /[.!?。！？…"'」』)\]]\s*$/;
+
+export function dropTruncatedTail(segments: AudioSegment[]): AudioSegment[] {
+  if (segments.length === 0) return segments;
+  const last = segments[segments.length - 1];
+  if (SENTENCE_END.test(last.text)) return segments;
+
+  // Keep whatever complete sentences the final paragraph does contain;
+  // drop the paragraph entirely if none survive. A full stop inside a
+  // figure ("15.87 billion") is not a sentence boundary, so require the
+  // mark to be followed by whitespace or the end of the text.
+  const boundary = /[.!?](?![0-9])(?=\s|$)|[。！？]/g;
+  let cut = -1;
+  let match: RegExpExecArray | null;
+  while ((match = boundary.exec(last.text)) !== null) cut = match.index;
+
+  if (cut > 40) {
+    return [...segments.slice(0, -1), { ...last, text: last.text.slice(0, cut + 1) }];
+  }
+  return segments.slice(0, -1);
 }
 
 export type AudioBriefRow = typeof schema.audioBriefs.$inferSelect;
@@ -161,7 +197,7 @@ export async function generateAudioBrief(options: {
     raw = await completeRaw(
       AUDIO_RULES,
       `Write today's ${spec.title} for Tony, ${spec.words}.\n${spec.style}\n${langInstruction(language)}\nOpen with a one-sentence greeting appropriate to a morning briefing, and close with a single calm sign-off sentence.\n\nSOURCES:\n\n${block}`,
-      format === "deep" ? 4000 : 2600,
+      TOKEN_BUDGET[format],
     );
   } catch (err) {
     return {
