@@ -6,6 +6,7 @@ import ListenTodayButton from "@/components/ListenTodayButton";
 import RefreshBriefButton from "@/components/RefreshBriefButton";
 import SinceLastVisit from "@/components/SinceLastVisit";
 import WatchlistMini from "@/components/WatchlistMini";
+import { isAiConfigured } from "@/lib/ai";
 import { generateDailyBrief, getTodaysBrief } from "@/lib/brief";
 import { hkFullDate, timeAgo } from "@/lib/format";
 import { greetingFor } from "@/lib/greeting";
@@ -115,6 +116,7 @@ export default async function TodayPage() {
           <ListenTodayButton
             language={lang === "zh" ? "zh-HK" : lang === "both" ? "bilingual" : "en"}
             label={t(lang, "listenToBrief")}
+            aiConfigured={isAiConfigured()}
           />
           <RefreshBriefButton
             labels={{ refresh: t(lang, "refreshBrief"), refreshing: t(lang, "refreshing") }}

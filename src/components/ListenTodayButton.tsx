@@ -11,12 +11,17 @@ import type { TtsSegment } from "@/lib/voice/tts";
 export default function ListenTodayButton({
   language,
   label,
+  aiConfigured,
 }: {
   language: "en" | "zh-HK" | "bilingual";
   label: string;
+  /** Without an AI provider there is no script to speak, so offer nothing. */
+  aiConfigured: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (!aiConfigured) return null;
 
   const listen = async () => {
     if (busy) return;

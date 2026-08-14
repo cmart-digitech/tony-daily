@@ -48,12 +48,31 @@ export async function POST(req: NextRequest) {
   }
   const result = await generateAudioBrief(body.data);
   if (!result.brief) {
+    // Reason codes are for diagnostics; `error` is what a reader sees.
     return NextResponse.json(
-      { ok: false, error: result.reason ?? "Generation failed." },
+      {
+        ok: false,
+        reason: result.reason ?? "unknown",
+        error: humanReason(result.reason),
+      },
       { status: result.reason === "ai-not-configured" ? 200 : 502 },
     );
   }
   return NextResponse.json({ ok: true, episode: result.brief });
+}
+
+function humanReason(reason?: string): string {
+  switch (reason) {
+    case "ai-not-configured":
+      return "Audio briefings need an AI provider key. Add one and redeploy.";
+    case "no-verified-stories":
+      return "No verified stories yet today — refresh the brief first.";
+    case "empty-script":
+      return "The model returned no usable script. Please try again.";
+    default:
+      // Provider errors already carry a readable message (quota, key, etc.).
+      return reason && reason.length > 3 ? reason : "Audio could not be generated.";
+  }
 }
 
 export async function DELETE(req: NextRequest) {

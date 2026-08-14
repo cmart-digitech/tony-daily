@@ -49,7 +49,8 @@ async function callModel(options: {
   const apiKey = providerApiKey(id);
   if (!apiKey) {
     throw new AiNotConfiguredError(
-      `AI is not configured. Set ${PROVIDERS[id].keyVars[0]} for ${PROVIDERS[id].label}.`,
+      `AI is not configured. Set ${PROVIDERS[id].keyVars[0]} for ${PROVIDERS[id].label}` +
+        `${PROVIDERS[id].freeTier ? ` (${PROVIDERS[id].freeTier})` : ""}.`,
     );
   }
   const model = providerModel(id);

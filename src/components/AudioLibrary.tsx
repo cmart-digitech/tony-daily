@@ -90,9 +90,18 @@ export default function AudioLibrary({ aiConfigured, todayKey }: { aiConfigured:
 
   if (!aiConfigured) {
     return (
-      <p className="border border-line bg-subtle px-4 py-3 text-sm text-ink-2">
-        Audio briefings need the AI provider configured.
-      </p>
+      <div className="border border-line bg-subtle px-5 py-4">
+        <p className="mb-2 text-sm text-ink">
+          Audio briefings are not available on this deployment yet.
+        </p>
+        <p className="text-sm text-ink-2">
+          Briefing scripts are written from the day&rsquo;s verified stories by the
+          AI provider, so one provider key is required. Add{" "}
+          <code className="font-mono text-[0.92em]">GEMINI_API_KEY</code> (free tier,
+          no card) — or any supported provider key — and restart. Playback itself
+          uses your device&rsquo;s own voices and costs nothing.
+        </p>
+      </div>
     );
   }
 

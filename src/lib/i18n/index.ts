@@ -57,8 +57,8 @@ const STRINGS = {
     zh: "尚未設定市場數據。請在 .env.local 加入 TWELVE_DATA_API_KEY。",
   },
   aiNotConfigured: {
-    en: "AI is not configured. Add ANTHROPIC_API_KEY to .env.local.",
-    zh: "尚未設定 AI。請在 .env.local 加入 ANTHROPIC_API_KEY。",
+    en: "AI is not configured. Add a provider key such as GEMINI_API_KEY (free tier).",
+    zh: "尚未設定 AI。請加入供應商金鑰，例如 GEMINI_API_KEY（免費方案）。",
   },
   imageUnavailable: { en: "Image unavailable", zh: "沒有圖片" },
   addStock: { en: "Add stock", zh: "新增股票" },

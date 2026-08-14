@@ -38,8 +38,11 @@ afterEach(() => {
 });
 
 describe("provider resolution", () => {
-  it("defaults to Anthropic when nothing is configured", () => {
-    expect(resolveProviderId()).toBe("anthropic");
+  it("falls back to a free-tier provider when nothing is configured", () => {
+    // Guidance shown to the operator names this provider, so the default
+    // must point at a free tier rather than a paid one.
+    expect(resolveProviderId()).toBe("gemini");
+    expect(PROVIDERS.gemini.freeTier).toMatch(/free/i);
   });
 
   it("auto-selects the provider whose key is present", () => {
@@ -60,6 +63,11 @@ describe("provider resolution", () => {
 
   it("ignores an unknown AI_PROVIDER rather than crashing", () => {
     process.env.AI_PROVIDER = "not-a-provider";
+    expect(resolveProviderId()).toBe("gemini");
+  });
+
+  it("still selects Anthropic when its key is the one present", () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
     expect(resolveProviderId()).toBe("anthropic");
   });
 

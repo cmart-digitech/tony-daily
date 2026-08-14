@@ -111,7 +111,9 @@ export function resolveProviderId(): ProviderId {
     const preset = PROVIDERS[id];
     if (preset.keyVars.some((v) => v !== "AI_API_KEY" && process.env[v])) return id;
   }
-  return "anthropic";
+  // Nothing configured: fall back to the provider this product actually
+  // runs on, so guidance points at a free tier rather than a paid one.
+  return "gemini";
 }
 
 export function providerApiKey(id: ProviderId): string | undefined {
