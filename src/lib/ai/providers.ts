@@ -116,6 +116,45 @@ export function resolveProviderId(): ProviderId {
   return "gemini";
 }
 
+/**
+ * Providers to try, in order: the resolved primary first, then every other
+ * provider that has a key. A free tier that has run out for the day should
+ * degrade to another free tier rather than taking the whole product down.
+ * Order is deliberate — Gemini first for Traditional Chinese quality, then
+ * the high-volume free tiers.
+ */
+const FAILOVER_ORDER: ProviderId[] = [
+  "gemini",
+  "groq",
+  "openrouter",
+  "mistral",
+  "xai",
+  "anthropic",
+];
+
+export function providerChain(): ProviderId[] {
+  const primary = resolveProviderId();
+  const chain = [primary];
+  // An explicit AI_PROVIDER choice means "use this one"; only fail over
+  // when the choice was inferred from whichever key happened to be present.
+  if (process.env.AI_PROVIDER?.trim()) return chain;
+
+  for (const id of FAILOVER_ORDER) {
+    if (id === primary || chain.includes(id)) continue;
+    if (providerApiKey(id)) chain.push(id);
+  }
+  return chain;
+}
+
+/** Quota and transient failures are worth retrying elsewhere; a bad key is not. */
+export function isFailoverWorthy(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/rejected the API key/i.test(message)) return false;
+  return /quota|rate limit|HTTP 5\d\d|could not be reached|unreachable|network|timed? ?out|empty response/i.test(
+    message,
+  );
+}
+
 export function providerApiKey(id: ProviderId): string | undefined {
   for (const v of PROVIDERS[id].keyVars) {
     const value = process.env[v];

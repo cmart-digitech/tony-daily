@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   extractProviderMessage,
+  isFailoverWorthy,
+  providerChain,
   PROVIDERS,
   providerApiKey,
   providerBaseUrl,
@@ -131,6 +133,57 @@ describe("model selection", () => {
     expect(providerModel("anthropic")).toBe("claude-legacy");
     // ...but only for Anthropic.
     expect(providerModel("groq")).toBe(PROVIDERS.groq.defaultModel);
+  });
+});
+
+describe("provider failover chain", () => {
+  it("is just the primary when only one key exists", () => {
+    process.env.GEMINI_API_KEY = "k";
+    expect(providerChain()).toEqual(["gemini"]);
+  });
+
+  it("falls back to other configured free tiers, Gemini first", () => {
+    process.env.GROQ_API_KEY = "k";
+    process.env.GEMINI_API_KEY = "k";
+    const chain = providerChain();
+    expect(chain[0]).toBe("gemini");
+    expect(chain).toContain("groq");
+  });
+
+  it("never includes a provider without a key", () => {
+    process.env.GROQ_API_KEY = "k";
+    const chain = providerChain();
+    expect(chain).toEqual(["groq"]);
+    expect(chain).not.toContain("mistral");
+  });
+
+  it("respects an explicit AI_PROVIDER and does not fail over", () => {
+    process.env.GEMINI_API_KEY = "k";
+    process.env.GROQ_API_KEY = "k";
+    process.env.AI_PROVIDER = "groq";
+    expect(providerChain()).toEqual(["groq"]);
+  });
+});
+
+describe("isFailoverWorthy", () => {
+  it("retries elsewhere on quota and rate limits", () => {
+    expect(isFailoverWorthy(new Error("AI quota reached for now"))).toBe(true);
+    expect(isFailoverWorthy(new Error("rate limit reached"))).toBe(true);
+  });
+
+  it("retries on transient server and network faults", () => {
+    expect(isFailoverWorthy(new Error("AI provider error (HTTP 503)"))).toBe(true);
+    expect(isFailoverWorthy(new Error("The AI provider could not be reached."))).toBe(true);
+  });
+
+  it("does NOT retry a rejected key — it would fail identically elsewhere", () => {
+    expect(
+      isFailoverWorthy(new Error("The AI provider rejected the API key. Check the key is current.")),
+    ).toBe(false);
+  });
+
+  it("does not retry ordinary bad requests", () => {
+    expect(isFailoverWorthy(new Error("AI provider error (HTTP 400): bad model"))).toBe(false);
   });
 });
 

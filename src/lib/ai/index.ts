@@ -6,12 +6,15 @@ import type { Quote } from "@/lib/market/types";
 import {
   AiNotConfiguredError,
   completeOpenAiCompatible,
+  isFailoverWorthy,
   providerApiKey,
   providerBaseUrl,
+  providerChain,
   providerModel,
   PROVIDERS,
   resolveProviderId,
   type ChatMessage,
+  type ProviderId,
 } from "./providers";
 
 export type SummaryLevel = "30s" | "2min" | "deep";
@@ -44,8 +47,30 @@ async function callModel(options: {
   messages: ChatMessage[];
   maxTokens: number;
 }): Promise<string> {
+  const chain = providerChain();
+  let lastError: unknown;
+
+  for (const id of chain) {
+    try {
+      return await callProvider(id, options);
+    } catch (err) {
+      lastError = err;
+      // A key problem or a bad request will fail identically elsewhere;
+      // only quota and transient faults are worth another provider.
+      if (!isFailoverWorthy(err) || id === chain[chain.length - 1]) throw err;
+      console.warn(
+        `AI provider ${id} unavailable (${err instanceof Error ? err.message : err}); trying next provider.`,
+      );
+    }
+  }
+  throw lastError ?? new Error("No AI provider available.");
+}
+
+async function callProvider(
+  id: ProviderId,
+  options: { system: string; messages: ChatMessage[]; maxTokens: number },
+): Promise<string> {
   const { system, messages, maxTokens } = options;
-  const id = resolveProviderId();
   const apiKey = providerApiKey(id);
   if (!apiKey) {
     throw new AiNotConfiguredError(
@@ -53,7 +78,9 @@ async function callModel(options: {
         `${PROVIDERS[id].freeTier ? ` (${PROVIDERS[id].freeTier})` : ""}.`,
     );
   }
-  const model = providerModel(id);
+  // AI_MODEL pins a model for the configured provider only — sending its
+  // name to a fallback vendor would be an instant "unknown model" error.
+  const model = id === resolveProviderId() ? providerModel(id) : PROVIDERS[id].defaultModel;
 
   if (id === "anthropic") {
     const client = new Anthropic({ apiKey });

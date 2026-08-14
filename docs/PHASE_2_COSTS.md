@@ -18,6 +18,31 @@ else says "verify current pricing" rather than guessing.
 | Text-to-speech (briefs, answers) | Browser speechSynthesis | Free | Device voices incl. zh-HK; no audio hosted |
 | Telegram delivery + alerts | Telegram Bot API | Free | |
 
+## Why a Claude subscription cannot power this app
+
+Claude Pro/Max cover the official surfaces only — claude.ai, Desktop and
+Claude Code. **As of 4 April 2026 Anthropic explicitly ended subscription
+quota access for third-party tools**, which is what Tony Daily would be.
+Programmatic use requires API-key billing. Proxy tools that present a Max
+subscription as an API endpoint exist; they breach the terms and are not
+used here. The same is true of other vendors' consumer subscriptions
+(ChatGPT Plus, Gemini Advanced): a chat subscription is not an API plan.
+
+## Free-tier failover (implemented)
+
+Rather than depend on one free quota, the AI layer now **fails over across
+configured providers**: if one returns a quota/rate-limit or transient
+error, the next configured provider serves the request. Order is Gemini
+first (best Traditional Chinese), then Groq, OpenRouter, Mistral, xAI,
+Anthropic. A rejected API key never triggers failover — it would fail
+identically elsewhere. Setting `AI_PROVIDER` explicitly pins one provider
+and disables failover.
+
+Practical effect: adding a second free key roughly removes daily-quota
+outages. Groq's free tier (verified 13 Aug 2026: 30 req/min, 14,400
+req/day, no credit card) is far larger than Gemini's and makes a good
+second provider.
+
 ## Paid options awaiting Tony's decision
 
 | Service | Why | Verified cost | Status |
