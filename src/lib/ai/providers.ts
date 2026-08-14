@@ -151,6 +151,28 @@ export class AiNotConfiguredError extends Error {
 }
 
 /**
+ * Pull a readable sentence out of a provider error body.
+ *
+ * Shapes differ by vendor: OpenAI-style is `{error:{message}}`, Gemini's
+ * compatibility endpoint returns `[{error:{message}}]`. Anything else
+ * yields an empty string rather than raw JSON — a reader must never be
+ * shown a payload dump.
+ */
+export function extractProviderMessage(body: string): string {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    const candidate = Array.isArray(parsed) ? parsed[0] : parsed;
+    const message = (candidate as { error?: { message?: string } })?.error?.message;
+    if (typeof message !== "string" || !message.trim()) return "";
+    // Trim to the first sentence and drop trailing help URLs.
+    const firstSentence = message.split(/(?<=\.)\s/)[0].trim();
+    return firstSentence.replace(/\s*https?:\/\/\S+/g, "").slice(0, 160);
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Call an OpenAI-compatible /chat/completions endpoint. Uses fetch directly
  * rather than adding an SDK dependency for what is a single POST.
  */
@@ -185,22 +207,23 @@ export async function completeOpenAiCompatible(options: {
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    // Surface the provider's own message; it explains quota and key problems
-    // far better than a generic failure would.
-    let detail = body.slice(0, 300);
-    try {
-      const parsed = JSON.parse(body) as { error?: { message?: string } };
-      if (parsed.error?.message) detail = parsed.error.message;
-    } catch {
-      /* keep the raw snippet */
-    }
+    const detail = extractProviderMessage(body);
+    // The full provider payload goes to server logs; the thrown message is
+    // what a reader may see, so it stays short and free of raw JSON.
+    console.error(`AI provider HTTP ${res.status}: ${body.slice(0, 500)}`);
+
     if (res.status === 401 || res.status === 403) {
-      throw new Error(`AI provider rejected the API key: ${detail}`);
+      throw new Error("The AI provider rejected the API key. Check the key is current.");
     }
     if (res.status === 429) {
-      throw new Error(`AI provider rate limit reached: ${detail}`);
+      throw new Error(
+        "AI quota reached for now — this resets on the provider's own schedule. " +
+          "Existing content is unaffected.",
+      );
     }
-    throw new Error(`AI provider error (HTTP ${res.status}): ${detail}`);
+    throw new Error(
+      `AI provider error (HTTP ${res.status})${detail ? `: ${detail}` : "."}`,
+    );
   }
 
   const data = (await res.json()) as {

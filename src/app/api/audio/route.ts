@@ -70,9 +70,15 @@ function humanReason(reason?: string): string {
     case "empty-script":
       return "The model returned no usable script. Please try again.";
     default:
-      // Provider errors already carry a readable message (quota, key, etc.).
-      return reason && reason.length > 3 ? reason : "Audio could not be generated.";
+      break;
   }
+  if (!reason || reason.length < 4) return "Audio could not be generated.";
+  // Belt and braces: never let a raw payload reach the page, however a
+  // provider chose to phrase its failure.
+  if (/[{}[\]]|"error"/.test(reason)) {
+    return "Audio could not be generated — the AI provider returned an error.";
+  }
+  return reason.length > 200 ? `${reason.slice(0, 200)}…` : reason;
 }
 
 export async function DELETE(req: NextRequest) {

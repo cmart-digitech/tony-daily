@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  extractProviderMessage,
   PROVIDERS,
   providerApiKey,
   providerBaseUrl,
@@ -130,6 +131,41 @@ describe("model selection", () => {
     expect(providerModel("anthropic")).toBe("claude-legacy");
     // ...but only for Anthropic.
     expect(providerModel("groq")).toBe(PROVIDERS.groq.defaultModel);
+  });
+});
+
+describe("extractProviderMessage", () => {
+  it("reads the OpenAI-style error shape", () => {
+    expect(
+      extractProviderMessage(JSON.stringify({ error: { message: "Invalid API key." } })),
+    ).toBe("Invalid API key.");
+  });
+
+  it("reads Gemini's array-wrapped shape", () => {
+    // The live payload that leaked raw JSON into the UI.
+    const body = JSON.stringify([
+      {
+        error: {
+          code: 429,
+          message:
+            "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits.",
+        },
+      },
+    ]);
+    const message = extractProviderMessage(body);
+    expect(message).toBe("You exceeded your current quota, please check your plan and billing details.");
+    expect(message).not.toContain("{");
+    expect(message).not.toContain("http");
+  });
+
+  it("returns nothing rather than raw JSON for unknown shapes", () => {
+    expect(extractProviderMessage('{"weird":true}')).toBe("");
+    expect(extractProviderMessage("<html>gateway error</html>")).toBe("");
+  });
+
+  it("caps very long provider messages", () => {
+    const long = JSON.stringify({ error: { message: "x".repeat(500) } });
+    expect(extractProviderMessage(long).length).toBeLessThanOrEqual(160);
   });
 });
 
