@@ -161,6 +161,23 @@ function expandScale(s: string): string {
   return k;
 }
 
+/**
+ * Names the missing language in a way a reader can act on. Kept separate so
+ * it can be asserted directly, and so the wording lives in one place.
+ */
+export function missingVoiceMessage(langs: string[]): string {
+  const names = langs.map((l) =>
+    l.toLowerCase().startsWith("zh") ? "Cantonese (廣東話)" : "English",
+  );
+  const unique = [...new Set(names)];
+  return (
+    `No ${unique.join(" or ")} voice is installed on this device, so that part ` +
+    `cannot be read aloud. Add one in Windows Settings, Time & language, ` +
+    `Language & region, then add Chinese (Traditional, Hong Kong) with its ` +
+    `speech feature. The text is all here to read in the meantime.`
+  );
+}
+
 export class BrowserTtsProvider implements TextToSpeechProvider {
   readonly id = "browser";
 
@@ -199,7 +216,23 @@ export class BrowserTtsProvider implements TextToSpeechProvider {
         return ranked[Math.max(0, i) % ranked.length];
       };
 
-      options.segments.forEach((segment, index) => {
+      // A device with no Cantonese voice would otherwise hand Chinese text
+      // to an English engine, which reads it as noise. Say what is missing
+      // and skip those segments rather than producing gibberish.
+      const missing = [...new Set(options.segments.map((x) => x.lang))].filter(
+        (l) => rankVoices(voices, l).length === 0,
+      );
+      if (missing.length > 0) {
+        options.onError?.(missingVoiceMessage(missing));
+        if (missing.length === new Set(options.segments.map((x) => x.lang)).size) {
+          options.onEnd?.();
+          return;
+        }
+      }
+
+      const playable = options.segments.filter((x) => !missing.includes(x.lang));
+
+      playable.forEach((segment, index) => {
         const utterance = new SpeechSynthesisUtterance(
           speechText(segment.text, segment.lang),
         );
@@ -215,7 +248,7 @@ export class BrowserTtsProvider implements TextToSpeechProvider {
           utterance.pitch = i % 2 === 1 ? 0.9 : 1.05;
         }
         utterance.onstart = () => options.onProgress?.(index);
-        if (index === options.segments.length - 1) {
+        if (index === playable.length - 1) {
           utterance.onend = () => options.onEnd?.();
         }
         utterance.onerror = (e) => {

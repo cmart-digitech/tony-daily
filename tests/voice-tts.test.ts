@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { rankVoices, scoreVoice, speechText } from "@/lib/voice/tts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { missingVoiceMessage, rankVoices, scoreVoice, speechText } from "@/lib/voice/tts";
+
+afterEach(() => vi.unstubAllGlobals());
 
 /** Minimal stand-in for SpeechSynthesisVoice — only the fields we rank on. */
 const v = (name: string, lang: string, localService = true) => ({ name, lang, localService });
@@ -93,5 +95,63 @@ describe("speechText — read it the way a person would say it", () => {
   it("does not alter ordinary prose", () => {
     const plain = "Lawmakers flagged gaps in the proposed building rules.";
     expect(speechText(plain)).toBe(plain);
+  });
+});
+
+describe("a missing language voice is reported, never faked", () => {
+  const makeSynth = (voices: { name: string; lang: string }[]) => {
+    const spoken: { text: string; voice: string | null; lang: string }[] = [];
+    const synth = {
+      getVoices: () => voices,
+      speak: (u: { text: string; voice: { name: string } | null; lang: string }) =>
+        spoken.push({ text: u.text, voice: u.voice?.name ?? null, lang: u.lang }),
+      cancel: () => {},
+      pause: () => {},
+      resume: () => {},
+      addEventListener: () => {},
+    };
+    return { synth, spoken };
+  };
+
+  it("does not hand Chinese text to an English engine", async () => {
+    // This machine's real situation: English voices only, no Chinese at all.
+    const { synth, spoken } = makeSynth([{ name: "Microsoft David", lang: "en-US" }]);
+    class Utterance {
+      voice: unknown = null;
+      lang = "";
+      rate = 1;
+      pitch = 1;
+      onstart: (() => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(public text: string) {}
+    }
+    vi.stubGlobal("SpeechSynthesisUtterance", Utterance);
+    vi.stubGlobal("window", { speechSynthesis: synth });
+    vi.stubGlobal("speechSynthesis", synth);
+
+    const errors: string[] = [];
+    const { BrowserTtsProvider } = await import("@/lib/voice/tts");
+    new BrowserTtsProvider().speak({
+      segments: [
+        { text: "Good morning, Tony.", lang: "en-US" },
+        { text: "樓價上升", lang: "zh-HK" },
+      ],
+      rate: 1,
+      onError: (m) => errors.push(m),
+    });
+    await new Promise((r) => setTimeout(r, 20));
+
+    // The English half still plays; the Cantonese half is not read aloud
+    // by an English voice, and the reason is stated.
+    expect(spoken.map((x) => x.lang)).toEqual(["en-US"]);
+    expect(errors.join(" ")).toMatch(/Cantonese/);
+  });
+
+  it("names the language and how to fix it", () => {
+    const m = missingVoiceMessage(["zh-HK"]);
+    expect(m).toMatch(/Cantonese/);
+    expect(m).toMatch(/Language & region/);
+    expect(m).not.toMatch(/undefined|null/);
   });
 });

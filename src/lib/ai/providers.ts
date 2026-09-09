@@ -31,6 +31,13 @@ export interface ProviderPreset {
   /** Where to get a key, shown in setup guidance. */
   console: string;
   freeTier: string;
+  /**
+   * Largest max_tokens this provider's free tier will actually serve in one
+   * request. Omitted where the tier is generous enough not to matter. A
+   * request above the ceiling is clamped rather than rejected: a slightly
+   * shorter briefing beats no briefing, and truncated tails are dropped.
+   */
+  maxTokens?: number;
 }
 
 export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
@@ -66,7 +73,13 @@ export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
     defaultModel: "openai/gpt-oss-120b",
     keyVars: ["GROQ_API_KEY", "AI_API_KEY"],
     console: "https://console.groq.com/keys",
-    freeTier: "Free tier, no credit card (30 req/min)",
+    freeTier: "Free tier, no credit card (8,000 tokens/min)",
+    // Measured 10 Sept 2026: every general-purpose model on the free tier
+    // reports x-ratelimit-limit-tokens: 8000 per minute. A deep briefing
+    // asks for 16,000 and was rejected outright ("Limit 8000, Used 4335,
+    // Requested 6588"). Clamp below the ceiling so the fallback produces a
+    // shorter briefing instead of nothing.
+    maxTokens: 7000,
   },
   xai: {
     id: "xai",
@@ -139,6 +152,54 @@ const FAILOVER_ORDER: ProviderId[] = [
   "anthropic",
 ];
 
+/**
+ * Providers we know are rate-limited right now, and the moment they are
+ * worth trying again.
+ *
+ * Without this, a chain of [gemini, groq] spends a doomed call on Gemini
+ * before every single fallback for as long as Gemini's quota is spent —
+ * slow, and it keeps the exhausted provider pinned at its limit. Rate-limit
+ * replies carry their own "retry in 41.4s", so honour it: the two providers
+ * genuinely take turns instead of one always going first.
+ *
+ * In-memory and per-instance on purpose. It is a hint, never a gate — a
+ * cooling provider is still tried if it is the only one left.
+ */
+const coolingUntil = new Map<ProviderId, number>();
+
+/** Seconds until this provider is worth trying again; 0 when it is ready. */
+export function providerCoolingFor(id: ProviderId, now = Date.now()): number {
+  const until = coolingUntil.get(id);
+  if (until == null) return 0;
+  if (until <= now) {
+    coolingUntil.delete(id);
+    return 0;
+  }
+  return Math.ceil((until - now) / 1000);
+}
+
+export function markProviderCooling(id: ProviderId, seconds: number, now = Date.now()): void {
+  // Clamped: a provider is never parked for more than five minutes, so a
+  // misparsed number cannot take a provider out of rotation for the day.
+  const s = Math.max(1, Math.min(300, Math.ceil(seconds)));
+  coolingUntil.set(id, now + s * 1000);
+}
+
+/** Test seam — no production caller clears the whole map. */
+export function resetProviderCooling(): void {
+  coolingUntil.clear();
+}
+
+/**
+ * Providers state their own backoff: Gemini says "Please retry in 41.46s",
+ * Groq says "try again in 21.9225s". Use it when present so we wait exactly
+ * as long as we were asked to, and no longer.
+ */
+export function retryAfterSeconds(message: string, fallback = 60): number {
+  const m = /(?:retry|try again) in ([0-9]+(?:\.[0-9]+)?)\s*s/i.exec(message);
+  return m ? Math.ceil(Number(m[1])) : fallback;
+}
+
 export function providerChain(): ProviderId[] {
   const primary = resolveProviderId();
   const chain = [primary];
@@ -150,7 +211,12 @@ export function providerChain(): ProviderId[] {
     if (id === primary || chain.includes(id)) continue;
     if (providerApiKey(id)) chain.push(id);
   }
-  return chain;
+  // A provider that just told us it is rate-limited goes to the back rather
+  // than being tried first again. sort() is stable, so preference order
+  // survives inside each group.
+  return chain.sort(
+    (a, b) => (providerCoolingFor(a) ? 1 : 0) - (providerCoolingFor(b) ? 1 : 0),
+  );
 }
 
 /** Quota and transient failures are worth retrying elsewhere; a bad key is not. */
@@ -187,6 +253,19 @@ export function providerModel(id: ProviderId): string {
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+}
+
+/**
+ * A provider that is temporarily out of quota, carrying the wait it asked
+ * for. The message stays reader-safe; retryAfter is what the failover uses.
+ */
+export class RateLimitError extends Error {
+  readonly retryAfter: number;
+  constructor(message: string, retryAfter: number) {
+    super(message);
+    this.name = "RateLimitError";
+    this.retryAfter = retryAfter;
+  }
 }
 
 export class AiNotConfiguredError extends Error {
@@ -262,9 +341,14 @@ export async function completeOpenAiCompatible(options: {
       throw new Error("The AI provider rejected the API key. Check the key is current.");
     }
     if (res.status === 429) {
-      throw new Error(
+      // The reader sees a calm sentence; the retry window is carried on the
+      // error so the failover can stand this provider down for exactly as
+      // long as it asked, rather than guessing. Parsed from the raw body,
+      // which is where the vendors put it.
+      throw new RateLimitError(
         "AI quota reached for now — this resets on the provider's own schedule. " +
           "Existing content is unaffected.",
+        retryAfterSeconds(body),
       );
     }
     throw new Error(

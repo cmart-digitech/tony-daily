@@ -7,6 +7,9 @@ import {
   AiNotConfiguredError,
   completeOpenAiCompatible,
   isFailoverWorthy,
+  markProviderCooling,
+  RateLimitError,
+  retryAfterSeconds,
   providerApiKey,
   providerBaseUrl,
   providerChain,
@@ -57,10 +60,21 @@ async function callModel(options: {
       lastError = err;
       // A key problem or a bad request will fail identically elsewhere;
       // only quota and transient faults are worth another provider.
-      if (!isFailoverWorthy(err) || id === chain[chain.length - 1]) throw err;
-      console.warn(
-        `AI provider ${id} unavailable (${err instanceof Error ? err.message : err}); trying next provider.`,
-      );
+      if (!isFailoverWorthy(err)) throw err;
+
+      // Remember that this one is rate-limited, for exactly as long as it
+      // asked us to wait, so the next request starts with the other
+      // provider instead of spending a doomed call here first.
+      const message = err instanceof Error ? err.message : String(err);
+      if (err instanceof RateLimitError || /quota|rate limit/i.test(message)) {
+        const wait =
+          err instanceof RateLimitError ? err.retryAfter : retryAfterSeconds(message);
+        markProviderCooling(id, wait);
+        console.warn(`AI provider ${id} rate-limited; standing it down for ${wait}s.`);
+      }
+
+      if (id === chain[chain.length - 1]) throw err;
+      console.warn(`AI provider ${id} unavailable (${message}); trying next provider.`);
     }
   }
   throw lastError ?? new Error("No AI provider available.");
@@ -82,11 +96,18 @@ async function callProvider(
   // name to a fallback vendor would be an instant "unknown model" error.
   const model = id === resolveProviderId() ? providerModel(id) : PROVIDERS[id].defaultModel;
 
+  // Free tiers differ in how much they will serve in one request. Ask for
+  // what this provider can actually deliver rather than being refused: a
+  // shorter briefing is worth more than an error, and an unfinished tail is
+  // dropped downstream.
+  const cap = PROVIDERS[id].maxTokens;
+  const budget = cap ? Math.min(maxTokens, cap) : maxTokens;
+
   if (id === "anthropic") {
     const client = new Anthropic({ apiKey });
     const res = await client.messages.create({
       model,
-      max_tokens: maxTokens,
+      max_tokens: budget,
       temperature: 0.2,
       system,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -104,7 +125,14 @@ async function callProvider(
       "AI_BASE_URL must be set when AI_PROVIDER is 'custom'.",
     );
   }
-  return completeOpenAiCompatible({ baseUrl, apiKey, model, system, messages, maxTokens });
+  return completeOpenAiCompatible({
+    baseUrl,
+    apiKey,
+    model,
+    system,
+    messages,
+    maxTokens: budget,
+  });
 }
 
 const GROUNDING_RULES = `You are the research assistant inside TONY DAILY, a private news and market intelligence dashboard for Tony Wong, a retired Hong Kong architect who follows markets, property, architecture and urban development.

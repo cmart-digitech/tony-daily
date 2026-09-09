@@ -5,6 +5,13 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { completeRaw } from "@/lib/ai";
+import {
+  markProviderCooling,
+  providerChain,
+  providerCoolingFor,
+  resetProviderCooling,
+  retryAfterSeconds,
+} from "@/lib/ai/providers";
 
 const KEYS = [
   "AI_PROVIDER", "AI_MODEL", "AI_API_KEY", "AI_BASE_URL",
@@ -31,6 +38,9 @@ function quotaExhausted() {
 beforeEach(() => {
   saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
   for (const k of KEYS) delete process.env[k];
+  // Stand-downs are deliberately process-wide in production; each test must
+  // still start from a clean slate.
+  resetProviderCooling();
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -137,5 +147,122 @@ describe("Gemini exhausted → Groq serves the request", () => {
 
     await expect(completeRaw("system", "user", 100)).rejects.toThrow(/quota/i);
     expect(called).toHaveLength(1);
+  });
+});
+
+describe("providers take turns instead of one always going first", () => {
+  beforeEach(() => resetProviderCooling());
+  afterEach(() => resetProviderCooling());
+
+  it("reads the backoff the provider itself asked for", () => {
+    // The real messages, verbatim from both vendors.
+    expect(
+      retryAfterSeconds("You exceeded your current quota. Please retry in 41.463596087s."),
+    ).toBe(42);
+    expect(
+      retryAfterSeconds("Rate limit reached ... Please try again in 21.9225s. Need more tokens?"),
+    ).toBe(22);
+  });
+
+  it("falls back to a sane wait when no backoff is given", () => {
+    expect(retryAfterSeconds("You exceeded your current quota.")).toBe(60);
+  });
+
+  it("never stands a provider down for more than five minutes", () => {
+    markProviderCooling("gemini", 99_999);
+    expect(providerCoolingFor("gemini")).toBeLessThanOrEqual(300);
+  });
+
+  it("clears the stand-down once the wait has passed", () => {
+    const t0 = 1_000_000;
+    markProviderCooling("gemini", 30, t0);
+    expect(providerCoolingFor("gemini", t0 + 10_000)).toBeGreaterThan(0);
+    expect(providerCoolingFor("gemini", t0 + 31_000)).toBe(0);
+  });
+
+  it("puts a rate-limited provider last in the chain, keeping the rest in order", () => {
+    process.env.GEMINI_API_KEY = "g";
+    process.env.GROQ_API_KEY = "q";
+    expect(providerChain()).toEqual(["gemini", "groq"]);
+    markProviderCooling("gemini", 60);
+    expect(providerChain()).toEqual(["groq", "gemini"]);
+  });
+
+  it("starts the NEXT request with Groq after Gemini reports a quota limit", async () => {
+    process.env.GEMINI_API_KEY = "gemini-key";
+    process.env.GROQ_API_KEY = "groq-key";
+    const called: string[] = [];
+
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const url = String(input);
+      called.push(url);
+      if (url.includes("generativelanguage.googleapis.com")) {
+        return new Response(
+          JSON.stringify([
+            { error: { code: 429, message: "You exceeded your current quota. Please retry in 45s." } },
+          ]),
+          { status: 429, headers: { "content-type": "application/json" } },
+        );
+      }
+      return ok("Answer from Groq.");
+    });
+
+    // First request pays the cost of discovering Gemini is out.
+    expect(await completeRaw("system", "user", 100)).toBe("Answer from Groq.");
+    expect(called).toHaveLength(2);
+
+    // The second must not spend another doomed call on Gemini.
+    called.length = 0;
+    expect(await completeRaw("system", "user", 100)).toBe("Answer from Groq.");
+    expect(called).toHaveLength(1);
+    expect(called[0]).toContain("api.groq.com");
+  });
+
+  it("stands a provider down for the window it stated, not a guess", async () => {
+    // Real Groq 429 body. The reader-facing message is deliberately generic,
+    // so the wait has to travel on the error itself or it is lost.
+    process.env.GROQ_API_KEY = "groq-key";
+    vi.stubGlobal("fetch", async () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            message:
+              "Rate limit reached for model `openai/gpt-oss-120b` on tokens per minute (TPM): " +
+              "Limit 8000, Used 6489, Requested 3590. Please try again in 15.5925s.",
+            code: "rate_limit_exceeded",
+          },
+        }),
+        { status: 429, headers: { "content-type": "application/json" } },
+      ),
+    );
+
+    await expect(completeRaw("system", "user", 100)).rejects.toThrow(/quota/i);
+    const cooling = providerCoolingFor("groq");
+    expect(cooling).toBeGreaterThan(0);
+    expect(cooling).toBeLessThanOrEqual(16); // its number, not the 60s default
+  });
+
+  it("asks Groq for no more than its free tier will serve", async () => {
+    process.env.GROQ_API_KEY = "groq-key";
+    let requested = 0;
+    vi.stubGlobal("fetch", async (_i: RequestInfo | URL, init?: RequestInit) => {
+      requested = JSON.parse(String(init?.body)).max_tokens;
+      return ok("Short brief.");
+    });
+
+    // A deep briefing asks for 16000; Groq's free tier tops out at 8000/min.
+    await completeRaw("system", "user", 16_000);
+    expect(requested).toBeLessThanOrEqual(7_000);
+  });
+
+  it("does not clamp a provider that has no stated ceiling", async () => {
+    process.env.GEMINI_API_KEY = "gemini-key";
+    let requested = 0;
+    vi.stubGlobal("fetch", async (_i: RequestInfo | URL, init?: RequestInit) => {
+      requested = JSON.parse(String(init?.body)).max_tokens;
+      return ok("Full brief.");
+    });
+    await completeRaw("system", "user", 16_000);
+    expect(requested).toBe(16_000);
   });
 });
