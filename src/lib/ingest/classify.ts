@@ -20,9 +20,29 @@ const CATEGORY_KEYWORDS: Record<string, RegExp[]> = {
     /\b(infrastructure|railway|rail link|metro|mtr|airport|runway|bridge|tunnel|highway|reclamation|northern metropolis|kai tak|lantau)\b/i,
     /基建|鐵路|機場|跑道|大橋|隧道|填海|北部都會區|啟德/,
   ],
+  // Art means art -- works, artists, exhibitions of them, and the art
+  // market. Venue words alone do not qualify: "exhibition", "gallery",
+  // "museum" and 展覽 appear constantly in trade-show, biotech and
+  // government copy, and were promoting a biomedicine five-year plan and
+  // Belt and Road Summit coverage into this section. They count only when
+  // an art qualifier sits beside them. Dedicated art publishers do not
+  // rely on this list -- they keep their beat through the source default,
+  // so tightening here costs no genuine art coverage.
   art: [
-    /\b(auction house|art auction|art fair|art basel|gallery|galleries|museum|exhibition|curator|artist|artwork|painting|sculpture|sotheby'?s|christie'?s|phillips auction|bonhams|biennale|frieze|art market)\b/i,
-    /拍賣行|藝術品|藝術家|畫廊|美術館|展覽|雙年展|藝術博覽|蘇富比|佳士得|富藝斯/,
+    // The art market and its houses.
+    /\b(art auction|auction house|art market|art fair|art basel|frieze|sotheby'?s|christie'?s|bonhams|phillips auction|art dealer|gallerist|art collection|old master|art theft)\b/i,
+    // Works, makers and practice.
+    // Named works, not people: "artist duo has created a sauna" is an
+    // architecture story that happens to credit an artist, so a bare
+    // "artist" does not promote. The work itself does.
+    /\b(artworks?|paintings?|sculptures?|curator|curated by|retrospective|biennale|oil on canvas|watercolou?rs?|printmaking)\b/i,
+    // Venue words, but only when qualified as art.
+    // "design gallery" and "design fair" are the design trade, not the art
+    // market -- Dezeen's furniture coverage was arriving here through them.
+    /\b(art|photography|sculpture|painting|craft) (exhibition|fair|gallery|galleries|museum|biennale|show)\b/i,
+    /\b(art museum|art galler(y|ies)|museum of (art|modern art|fine arts?)|national gallery)\b/i,
+    /拍賣行|藝術品|藝術家|畫廊|美術館|雙年展|藝術博覽|蘇富比|佳士得|富藝斯|藝術市場|策展/,
+    /(藝術|攝影|雕塑|繪畫)(展覽|展出|博覽|館)/,
   ],
   markets: [
     /\b(stocks?|equit(y|ies)|hang seng|hsi|ipo|shares?|bond|earnings|dividend|market|index|nasdaq|s&p|dow|fed|interest rate|hkex|listing|profit warning|buyback)\b/i,

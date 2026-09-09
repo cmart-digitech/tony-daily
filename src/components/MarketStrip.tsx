@@ -5,10 +5,22 @@ import type { Quote } from "@/lib/market/types";
 
 /**
  * Restrained Bloomberg-inspired strip. Only symbols the provider actually
- * returns are rendered — missing data is never faked. HSI/major indexes may
- * be unavailable on free market-data plans; the strip simply omits them.
+ * returns are rendered — missing data is never faked, and a symbol the plan
+ * does not cover is simply omitted rather than shown as an error.
+ *
+ * Symbol choice is constrained by entitlement, verified against the live
+ * provider on 9 Sept 2026:
+ *   HSI      index — refused on the free plan (needs Grow); kept here so it
+ *            appears automatically if the plan is ever upgraded, which is
+ *            the one quote that matters most for a Hong Kong reader.
+ *   SPX      index — "available starting with the Grow or Venture plan".
+ *   IXIC     not a valid symbol on this provider at any tier we checked.
+ *   SPY/QQQ  the ETFs tracking those benchmarks — served on the free plan.
+ *
+ * The strip prints the ticker itself, so an ETF is labelled as that ETF and
+ * never dressed up as the index it tracks.
  */
-const STRIP_SYMBOLS = ["HSI", "SPX", "IXIC", "USD/HKD"];
+const STRIP_SYMBOLS = ["HSI", "SPY", "QQQ", "USD/HKD"];
 
 type QuoteResult =
   | { symbol: string; ok: true; quote: Quote }
