@@ -1,4 +1,4 @@
-# CLAUDE.md — Tony Daily
+# CLAUDE.md — The Daily
 
 Enduring rules for anyone (human or Claude) working on this codebase.
 

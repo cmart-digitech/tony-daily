@@ -1,6 +1,6 @@
-# Contributing to Tony Daily
+# Contributing to The Daily
 
-Tony Daily is a private daily intelligence dashboard: Hong Kong and
+The Daily is a private daily intelligence dashboard: Hong Kong and
 international news, markets, property and architecture, assembled into one
 brief. It is built on an absolute zero-hallucination policy — that rule
 shapes almost every design decision here, so read

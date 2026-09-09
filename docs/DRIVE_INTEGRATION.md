@@ -1,4 +1,4 @@
-# Google Drive — Tony Daily Vault (design, not yet built)
+# Google Drive — The Daily Vault (design, not yet built)
 
 Status: **deferred to its own increment** (brief P6). This document fixes
 the design so implementation cannot drift into over-broad access.
@@ -13,7 +13,7 @@ the design so implementation cannot drift into over-broad access.
 
 ## Planned capabilities
 - **Exports**: Daily Brief (Markdown/PDF), audio-brief transcripts, saved
-  research — into a `Tony Daily/` folder created only after connection.
+  research — into a `The Daily/` folder created only after connection.
 - **Imports**: files Tony picks (PDF, Docs, text, Markdown) into a private
   research library, retrievable by Ask Tony with provenance that clearly
   separates *Tony's private file* from *external news sources* (brief §30,

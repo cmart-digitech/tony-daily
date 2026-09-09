@@ -271,7 +271,7 @@ export async function summarizeArticle(options: {
   return summary;
 }
 
-/** Grounded Q&A for Ask Tony Daily. */
+/** Grounded Q&A for Ask The Daily. */
 export async function answerQuestion(options: {
   question: string;
   articles: ArticleForContext[];
@@ -350,7 +350,7 @@ export async function writeBriefOverview(options: {
     language === "zh-HK" ? "Write in Traditional Chinese (香港繁體中文)." : "Write in English.";
   return complete(
     GROUNDING_RULES,
-    `Write a calm 3–5 sentence morning overview for Tony's Daily Brief for ${dateLabel}, weaving together only the most important of the sources below. ${langInstruction} Every sentence carrying a fact must end with its [n] citation marker. No hype, no speculation, no advice. Plain prose only — no Markdown, no headings, no bullets, no bold. Do not end mid-sentence.\n\nSOURCES:\n\n${block}`,
+    `Write a calm 3–5 sentence morning overview for the Daily Brief of ${dateLabel}, weaving together only the most important of the sources below. ${langInstruction} Every sentence carrying a fact must end with its [n] citation marker. No hype, no speculation, no advice. Plain prose only — no Markdown, no headings, no bullets, no bold. Do not end mid-sentence.\n\nSOURCES:\n\n${block}`,
     1500,
   );
 }

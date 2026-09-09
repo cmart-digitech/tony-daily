@@ -64,7 +64,7 @@ type FeedItem = {
 
 const parser = new Parser<Record<string, unknown>, FeedItem>({
   timeout: FETCH_TIMEOUT_MS,
-  headers: { "User-Agent": "TonyDaily/0.1 (personal news dashboard)" },
+  headers: { "User-Agent": "TheDaily/0.1 (personal news dashboard)" },
   customFields: {
     item: [
       ["media:content", "mediaContent", { keepArray: true }],

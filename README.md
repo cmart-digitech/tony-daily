@@ -1,4 +1,4 @@
-# TONY DAILY
+# THE DAILY
 
 **Tony's Personal Market + Built Environment Intelligence Terminal**
 
@@ -37,7 +37,7 @@ Next.js 16 (App Router, TypeScript, Tailwind v4)
 ├── src/lib/brief       Deterministic Daily Brief builder (+ optional AI overview)
 └── src/app             Pages: Today · Markets · Property · Architecture ·
                         Watchlist (+ stock detail) · Saved · Search · Settings ·
-                        Ask Tony Daily · Onboarding — plus JSON API routes
+                        Ask The Daily · Onboarding — plus JSON API routes
 ```
 
 Data flows one way: **sources → SQLite index → UI/AI**. The AI never answers
@@ -58,7 +58,7 @@ briefing time, theme), then runs the first feed ingestion.
 
 | Variable | Needed for | Without it |
 |---|---|---|
-| One AI provider key (see [AI](#ai)) | Summaries, Daily Brief overview, Ask Tony Daily | Honest "AI not configured" states |
+| One AI provider key (see [AI](#ai)) | Summaries, Daily Brief overview, Ask The Daily | Honest "AI not configured" states |
 | `AI_PROVIDER` / `AI_MODEL` | Force a provider / model | Auto-detected from the key present |
 | `MARKET_DATA_PROVIDER` | Provider selection (`twelvedata`) | Defaults to twelvedata |
 | `TWELVE_DATA_API_KEY` | Quotes, charts, symbol search, market strip | Honest "market data not configured" states |
@@ -79,7 +79,7 @@ code changes. Recommended free stack: **Vercel Hobby + Turso free tier**
 
 > **Why not GitHub Pages?** Pages is a static file host — it cannot run a
 > Node.js server, API routes, a database, or scheduled feed ingestion, and it
-> cannot hold server-side secrets. Tony Daily needs all of those, so a Pages
+> cannot hold server-side secrets. The Daily needs all of those, so a Pages
 > deployment would render an empty shell with no news, no watchlist and no
 > AI. GitHub is still used here for the repository and for free scheduled
 > ingestion (see below); the app itself runs on Vercel's free tier, which
@@ -116,7 +116,9 @@ auto-detects as Next.js), then add environment variables under
 | `CRON_SECRET` | any long random string |
 | `APP_TIMEZONE` | `Asia/Hong_Kong` |
 | `TWELVE_DATA_API_KEY` | optional — enables market data |
-| `ANTHROPIC_API_KEY` | optional — enables AI features |
+| `GEMINI_API_KEY` | optional — enables AI features |
+| `GROQ_API_KEY` | optional — second provider, so a Gemini outage does not take AI down |
+| `DASHBOARD_PASSWORD` | **set this before any personal Phase 2 data is deployed** |
 
 Deploy, open the URL, and complete onboarding. The first run ingests the
 feeds and builds the brief.
@@ -154,13 +156,18 @@ curl -H "x-cron-secret: $CRON_SECRET" https://your-app.vercel.app/api/cron/inges
 
 ### 5. Lock it down
 
-The dashboard is private by design but has no built-in login, so a public
-deployment is readable by anyone with the URL. On Vercel free, either keep
-the URL unguessable and undisclosed, or add
-[Vercel Authentication](https://vercel.com/docs/deployment-protection)
-(Settings → Deployment Protection) so only your account can view it. Cron
-endpoints are already secret-protected and refuse to run without
-`CRON_SECRET`.
+The app ships a login gate, but it only activates when you configure it:
+set `DASHBOARD_PASSWORD`, or Google Sign-In (`GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET`, `AUTHORIZED_EMAILS`). Without either, the dashboard
+is readable by anyone with the URL — `/api/health` reports
+`authEnabled: false` so you can check from outside.
+
+**Close this before deploying anything personal.** Public news is one thing;
+saved conversations, memories and documents are another. Vercel's own
+[Deployment Protection](https://vercel.com/docs/deployment-protection) is an
+alternative, but note it also blocks the scheduled ingestion robot unless you
+add a bypass token. Cron endpoints are separately secret-protected and refuse
+to run without `CRON_SECRET`.
 
 ### Alternative hosts
 

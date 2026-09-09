@@ -60,7 +60,7 @@ export async function fetchOgImage(pageUrl: string): Promise<string | null> {
   try {
     const res = await fetch(pageUrl, {
       headers: {
-        "User-Agent": "TonyDaily/0.1 (personal news dashboard)",
+        "User-Agent": "TheDaily/0.1 (personal news dashboard)",
         Accept: "text/html,application/xhtml+xml",
       },
       redirect: "follow",

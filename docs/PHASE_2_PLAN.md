@@ -1,4 +1,4 @@
-# TONY DAILY — Phase 2 Plan (Personal Intelligence OS)
+# THE DAILY — Phase 2 Plan (Personal Intelligence OS)
 
 Maps the full Phase 2 brief ("Advanced Intelligence Platform") onto the
 existing production application. Upgrade in place — no rebuild, no
@@ -50,7 +50,7 @@ Telegram brief delivery.
   Listen button with play/pause/stop/replay and 0.75–1.5× speed. Voice and
   speed preferences persisted.
 
-### P3 — Tony Daily Audio
+### P3 — The Daily Audio
 - Anchor scripts generated server-side from the day's verified brief
   articles only (quick ≈2min / morning ≈5min / deep ≈10min), plus
   two-presenter dialogue formats. Stored in `audio_briefs` with date,

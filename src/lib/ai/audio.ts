@@ -217,7 +217,7 @@ export async function generateAudioBrief(options: {
   try {
     raw = await completeRaw(
       AUDIO_RULES,
-      `Write today's ${spec.title} for Tony, ${spec.words}.\n${spec.style}\n${langInstruction(language)}\nOpen with a one-sentence greeting appropriate to the hour — no name — and close with a single calm sign-off sentence.\n\nSOURCES:\n\n${block}`,
+      `Write today's ${spec.title}, ${spec.words}.\n${spec.style}\n${langInstruction(language)}\nOpen with a one-sentence greeting appropriate to the hour — no name — and close with a single calm sign-off sentence.\n\nSOURCES:\n\n${block}`,
       TOKEN_BUDGET[format],
     );
   } catch (err) {

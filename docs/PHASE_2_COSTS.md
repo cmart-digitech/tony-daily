@@ -22,7 +22,7 @@ else says "verify current pricing" rather than guessing.
 
 Claude Pro/Max cover the official surfaces only — claude.ai, Desktop and
 Claude Code. **As of 4 April 2026 Anthropic explicitly ended subscription
-quota access for third-party tools**, which is what Tony Daily would be.
+quota access for third-party tools**, which is what The Daily would be.
 Programmatic use requires API-key billing. Proxy tools that present a Max
 subscription as an API endpoint exist; they breach the terms and are not
 used here. The same is true of other vendors' consumer subscriptions

@@ -1,4 +1,4 @@
-# TONY DAILY — MVP Technical Plan
+# THE DAILY — MVP Technical Plan
 
 Private daily intelligence dashboard for Tony Wong: Hong Kong markets, property,
 architecture and the built environment. Bilingual (EN / 繁體中文), factual,
@@ -13,7 +13,7 @@ source-grounded, zero hallucination.
 | Persistence | SQLite (better-sqlite3) + Drizzle ORM | Zero-infra local MVP; swappable for Postgres later |
 | Ingestion | rss-parser + native fetch | Official RSS feeds only, no scraping, no paywall bypass |
 | Market data | `MarketDataProvider` abstraction → Twelve Data adapter | Legitimate API; keys server-side only; honest empty state without a key |
-| AI | `@anthropic-ai/sdk` server-side only (`AIService`) | Summaries, Daily Brief, Ask Tony Daily — always retrieval-grounded |
+| AI | `@anthropic-ai/sdk` server-side only (`AIService`) | Summaries, Daily Brief, Ask The Daily — always retrieval-grounded |
 | Charts | Hand-rolled inline SVG sparklines/line charts | No heavy chart dependency for MVP |
 
 No client-side secrets. All external calls happen in server routes/actions.
@@ -111,7 +111,7 @@ Light/Dark/System (class strategy, persisted). EN / 繁 / 雙語 toggle.
 
 Pages: TODAY (brief + hero + market strip), MARKETS, PROPERTY, ARCHITECTURE,
 WATCHLIST, SAVED, SETTINGS (interests, weights, sources health, briefing
-time, theme, language), ARTICLE view, ASK TONY DAILY chat, ONBOARDING.
+time, theme, language), ARTICLE view, ASK THE DAILY chat, ONBOARDING.
 
 Every module shows freshness ("News refreshed 4 min ago"). Every error state
 is honest — no fake data, ever.

@@ -9,7 +9,7 @@ import { t } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "The Daily",
-  description: "Tony's personal market + built environment intelligence terminal",
+  description: "A private market and built-environment intelligence terminal",
 };
 
 export const dynamic = "force-dynamic";
