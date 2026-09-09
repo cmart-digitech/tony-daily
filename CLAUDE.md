@@ -21,6 +21,12 @@ when data is missing.
   AI-assisted and never attributed to the publisher.
 - Store only metadata + permitted excerpts — never full copyrighted articles.
 - Never circumvent paywalls, robots rules, CAPTCHAs or rate limits.
+- **Tony's saved articles are irreplaceable and must survive every deploy.**
+  `saved_articles` holds only `article_id`, so a save silently becomes a
+  dangling id if its `articles` row disappears. Never drop, rebuild or prune
+  `articles` or `saved_articles` on production, and keep migrations additive
+  (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ADD COLUMN`). Check
+  `/saved` before and after any production migration or database change.
 
 ## Source rule
 
