@@ -2,16 +2,19 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import ArticleCard from "@/components/ArticleCard";
 import FormattedText from "@/components/FormattedText";
+import ListenTodayButton from "@/components/ListenTodayButton";
 import RefreshBriefButton from "@/components/RefreshBriefButton";
+import SinceLastVisit from "@/components/SinceLastVisit";
 import WatchlistMini from "@/components/WatchlistMini";
+import { isAiConfigured } from "@/lib/ai";
 import { generateDailyBrief, getTodaysBrief } from "@/lib/brief";
 import { hkFullDate, timeAgo } from "@/lib/format";
 import { greetingFor } from "@/lib/greeting";
 import { t } from "@/lib/i18n";
 import { imageFirst } from "@/lib/layout";
 import { lastRefreshedAt } from "@/lib/ingest";
-import { getArticles, topStories, watchlist } from "@/lib/queries";
-import { getPreferences } from "@/lib/prefs";
+import { getArticles, topStories, watchlist, watchlistNews } from "@/lib/queries";
+import { getPreferences, trackVisit } from "@/lib/prefs";
 import type { ArticleRow } from "@/lib/retrieval";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +24,7 @@ const SECTION_LABELS: Record<string, Parameters<typeof t>[1]> = {
   hk: "hongKong",
   property: "propertyDevelopment",
   architecture: "builtEnvironment",
+  art: "artAuctions",
   china: "greaterChinaAsia",
   global: "globalWatch",
 };
@@ -45,11 +49,25 @@ export default async function TodayPage() {
   }
 
   // Independent of each other — issue them together rather than in series.
-  const [refreshedAt, watchItems, ranked] = await Promise.all([
+  const [refreshedAt, watchItems, ranked, watchNews] = await Promise.all([
     lastRefreshedAt(),
     watchlist(),
     topStories(40),
+    watchlistNews(20),
   ]);
+
+  // SINCE YOUR LAST VISIT (brief §54): what the ranking already considers
+  // important, filtered to items indexed after the previous visit.
+  const previousVisit = await trackVisit();
+  const watchNewIds = new Set(watchNews.map((a) => a.id));
+  const fresh = previousVisit ? ranked.filter((a) => a.fetchedAt > previousVisit) : [];
+  const sinceGroups = [
+    { key: "watchlist", en: "watchlist developments", zhL: "項自選股相關", articles: fresh.filter((a) => watchNewIds.has(a.id)).slice(0, 3) },
+    { key: "hk", en: "Hong Kong stories", zhL: "項香港新聞", articles: fresh.filter((a) => a.region === "hk" && !watchNewIds.has(a.id) && a.category !== "property" && a.category !== "architecture").slice(0, 3) },
+    { key: "property", en: "property items", zhL: "項地產新聞", articles: fresh.filter((a) => a.category === "property").slice(0, 3) },
+    { key: "architecture", en: "architecture stories", zhL: "項建築新聞", articles: fresh.filter((a) => a.category === "architecture" || a.category === "infrastructure").slice(0, 3) },
+    { key: "art", en: "art items", zhL: "項藝術新聞", articles: fresh.filter((a) => a.category === "art").slice(0, 3) },
+  ];
 
   // Every brief section resolves from the same cached pool, so this costs
   // one query in total rather than one per section.
@@ -90,12 +108,17 @@ export default async function TodayPage() {
             {t(lang, "property")} · {t(lang, "architecture")}
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           {refreshedAt && (
             <span className="text-xs text-ink-3">
               {t(lang, "newsRefreshed")} {timeAgo(refreshedAt, zh)}
             </span>
           )}
+          <ListenTodayButton
+            language={lang === "zh" ? "zh-HK" : lang === "both" ? "bilingual" : "en"}
+            label={t(lang, "listenToBrief")}
+            aiConfigured={isAiConfigured()}
+          />
           <RefreshBriefButton
             labels={{ refresh: t(lang, "refreshBrief"), refreshing: t(lang, "refreshing") }}
           />
@@ -109,6 +132,10 @@ export default async function TodayPage() {
             labels={{ refresh: t(lang, "refreshBrief"), refreshing: t(lang, "refreshing") }}
           />
         </div>
+      )}
+
+      {previousVisit && (
+        <SinceLastVisit since={previousVisit} groups={sinceGroups} zh={lang === "zh"} />
       )}
 
       {hasContent && (
@@ -155,7 +182,10 @@ export default async function TodayPage() {
                   (a) => a.id !== hero?.id,
                 );
                 if (selected.length === 0) return null;
-                const visual = section.key === "property" || section.key === "architecture";
+                const visual =
+                  section.key === "property" ||
+                  section.key === "architecture" ||
+                  section.key === "art";
                 // Photo-led sections group illustrated stories first; text
                 // sections keep pure relevance order.
                 const arts = visual ? imageFirst(selected) : selected;

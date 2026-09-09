@@ -6,12 +6,18 @@ import type { Quote } from "@/lib/market/types";
 import {
   AiNotConfiguredError,
   completeOpenAiCompatible,
+  isFailoverWorthy,
+  markProviderCooling,
+  RateLimitError,
+  retryAfterSeconds,
   providerApiKey,
   providerBaseUrl,
+  providerChain,
   providerModel,
   PROVIDERS,
   resolveProviderId,
   type ChatMessage,
+  type ProviderId,
 } from "./providers";
 
 export type SummaryLevel = "30s" | "2min" | "deep";
@@ -44,21 +50,64 @@ async function callModel(options: {
   messages: ChatMessage[];
   maxTokens: number;
 }): Promise<string> {
+  const chain = providerChain();
+  let lastError: unknown;
+
+  for (const id of chain) {
+    try {
+      return await callProvider(id, options);
+    } catch (err) {
+      lastError = err;
+      // A key problem or a bad request will fail identically elsewhere;
+      // only quota and transient faults are worth another provider.
+      if (!isFailoverWorthy(err)) throw err;
+
+      // Remember that this one is rate-limited, for exactly as long as it
+      // asked us to wait, so the next request starts with the other
+      // provider instead of spending a doomed call here first.
+      const message = err instanceof Error ? err.message : String(err);
+      if (err instanceof RateLimitError || /quota|rate limit/i.test(message)) {
+        const wait =
+          err instanceof RateLimitError ? err.retryAfter : retryAfterSeconds(message);
+        markProviderCooling(id, wait);
+        console.warn(`AI provider ${id} rate-limited; standing it down for ${wait}s.`);
+      }
+
+      if (id === chain[chain.length - 1]) throw err;
+      console.warn(`AI provider ${id} unavailable (${message}); trying next provider.`);
+    }
+  }
+  throw lastError ?? new Error("No AI provider available.");
+}
+
+async function callProvider(
+  id: ProviderId,
+  options: { system: string; messages: ChatMessage[]; maxTokens: number },
+): Promise<string> {
   const { system, messages, maxTokens } = options;
-  const id = resolveProviderId();
   const apiKey = providerApiKey(id);
   if (!apiKey) {
     throw new AiNotConfiguredError(
-      `AI is not configured. Set ${PROVIDERS[id].keyVars[0]} for ${PROVIDERS[id].label}.`,
+      `AI is not configured. Set ${PROVIDERS[id].keyVars[0]} for ${PROVIDERS[id].label}` +
+        `${PROVIDERS[id].freeTier ? ` (${PROVIDERS[id].freeTier})` : ""}.`,
     );
   }
-  const model = providerModel(id);
+  // AI_MODEL pins a model for the configured provider only — sending its
+  // name to a fallback vendor would be an instant "unknown model" error.
+  const model = id === resolveProviderId() ? providerModel(id) : PROVIDERS[id].defaultModel;
+
+  // Free tiers differ in how much they will serve in one request. Ask for
+  // what this provider can actually deliver rather than being refused: a
+  // shorter briefing is worth more than an error, and an unfinished tail is
+  // dropped downstream.
+  const cap = PROVIDERS[id].maxTokens;
+  const budget = cap ? Math.min(maxTokens, cap) : maxTokens;
 
   if (id === "anthropic") {
     const client = new Anthropic({ apiKey });
     const res = await client.messages.create({
       model,
-      max_tokens: maxTokens,
+      max_tokens: budget,
       temperature: 0.2,
       system,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -76,10 +125,17 @@ async function callModel(options: {
       "AI_BASE_URL must be set when AI_PROVIDER is 'custom'.",
     );
   }
-  return completeOpenAiCompatible({ baseUrl, apiKey, model, system, messages, maxTokens });
+  return completeOpenAiCompatible({
+    baseUrl,
+    apiKey,
+    model,
+    system,
+    messages,
+    maxTokens: budget,
+  });
 }
 
-const GROUNDING_RULES = `You are the research assistant inside TONY DAILY, a private news and market intelligence dashboard for Tony Wong, a retired Hong Kong architect who follows markets, property, architecture and urban development.
+const GROUNDING_RULES = `You are the research assistant inside THE DAILY, a private news and market intelligence dashboard for a retired Hong Kong architect who follows markets, property, architecture and urban development.
 
 NON-NEGOTIABLE RULES:
 - Use ONLY the source material provided in this conversation. Never rely on your own memory for news, prices, statistics, dates or events.
@@ -90,6 +146,8 @@ NON-NEGOTIABLE RULES:
 - Preserve names, numbers, stock codes and dates exactly as in the sources.
 - Never give personalised buy/sell advice. If asked, explain you provide information, not financial advice.
 - If the user writes in Cantonese/Traditional Chinese, reply in natural Hong Kong written Traditional Chinese (繁體中文, zh-HK). If they write in English, reply in English.
+- Earlier conversation turns show what was DISCUSSED, not what is true now. A price, event or figure mentioned in past conversation is stale by definition — answer time-sensitive questions ONLY from the current SOURCES and MARKET DATA blocks, and say when they do not cover the question.
+- Saved preferences describe what the reader likes and how they want answers — they are NEVER factual evidence about the world.
 
 FORMATTING:
 - Write clean, calm editorial prose. Do NOT use Markdown syntax: no #, ##, ###, **, *, ---, tables or code fences.
@@ -213,15 +271,23 @@ export async function summarizeArticle(options: {
   return summary;
 }
 
-/** Grounded Q&A for Ask Tony Daily. */
+/** Grounded Q&A for Ask The Daily. */
 export async function answerQuestion(options: {
   question: string;
   articles: ArticleForContext[];
   quotes: Quote[];
   history: { role: "user" | "assistant"; content: string }[];
+  /** Explicit user-saved preferences — context, never evidence. */
+  memories?: string[];
 }): Promise<{ text: string; citations: Citation[] }> {
-  const { question, articles, quotes, history } = options;
+  const { question, articles, quotes, history, memories } = options;
   const { block, citations } = buildSourceBlock(articles);
+
+  const memoryBlock = memories?.length
+    ? `\nTONY'S SAVED PREFERENCES (how he wants answers — NOT factual evidence):\n${memories
+        .map((m) => `- ${m}`)
+        .join("\n")}\n`
+    : "";
 
   const quoteBlock = quotes.length
     ? quotes
@@ -242,7 +308,7 @@ ${block || "No relevant articles found in the currently connected sources."}
 
 MARKET DATA (${quotes.length ? "delayed/end-of-day as labelled" : "none available"}):
 ${quoteBlock}
-
+${memoryBlock}
 QUESTION:
 ${question}
 
@@ -284,7 +350,7 @@ export async function writeBriefOverview(options: {
     language === "zh-HK" ? "Write in Traditional Chinese (香港繁體中文)." : "Write in English.";
   return complete(
     GROUNDING_RULES,
-    `Write a calm 3–5 sentence morning overview for Tony's Daily Brief for ${dateLabel}, weaving together only the most important of the sources below. ${langInstruction} Every sentence carrying a fact must end with its [n] citation marker. No hype, no speculation, no advice. Plain prose only — no Markdown, no headings, no bullets, no bold. Do not end mid-sentence.\n\nSOURCES:\n\n${block}`,
+    `Write a calm 3–5 sentence morning overview for the Daily Brief of ${dateLabel}, weaving together only the most important of the sources below. ${langInstruction} Every sentence carrying a fact must end with its [n] citation marker. No hype, no speculation, no advice. Plain prose only — no Markdown, no headings, no bullets, no bold. Do not end mid-sentence.\n\nSOURCES:\n\n${block}`,
     1500,
   );
 }

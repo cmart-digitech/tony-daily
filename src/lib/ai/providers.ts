@@ -31,6 +31,13 @@ export interface ProviderPreset {
   /** Where to get a key, shown in setup guidance. */
   console: string;
   freeTier: string;
+  /**
+   * Largest max_tokens this provider's free tier will actually serve in one
+   * request. Omitted where the tier is generous enough not to matter. A
+   * request above the ceiling is clamped rather than rejected: a slightly
+   * shorter briefing beats no briefing, and truncated tails are dropped.
+   */
+  maxTokens?: number;
 }
 
 export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
@@ -56,10 +63,23 @@ export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
     id: "groq",
     label: "Groq",
     baseUrl: "https://api.groq.com/openai/v1",
-    defaultModel: "llama-3.3-70b-versatile",
+    // llama-3.3-70b-versatile was retired and now 404s. Checked the live
+    // model list on 10 Sept 2026 and compared the general-purpose
+    // candidates on a Traditional Chinese task, because this provider is
+    // the fallback for zh-HK work: gpt-oss-120b and qwen3.8-27b both
+    // rendered "Northern Metropolis" correctly as 北部都會區, while
+    // gpt-oss-20b produced 北方都市. The 120b is the larger model and used
+    // natural HK phrasing, so it takes the default.
+    defaultModel: "openai/gpt-oss-120b",
     keyVars: ["GROQ_API_KEY", "AI_API_KEY"],
     console: "https://console.groq.com/keys",
-    freeTier: "Free tier, no credit card (30 req/min)",
+    freeTier: "Free tier, no credit card (8,000 tokens/min)",
+    // Measured 10 Sept 2026: every general-purpose model on the free tier
+    // reports x-ratelimit-limit-tokens: 8000 per minute. A deep briefing
+    // asks for 16,000 and was rejected outright ("Limit 8000, Used 4335,
+    // Requested 6588"). Clamp below the ceiling so the fallback produces a
+    // shorter briefing instead of nothing.
+    maxTokens: 7000,
   },
   xai: {
     id: "xai",
@@ -111,7 +131,126 @@ export function resolveProviderId(): ProviderId {
     const preset = PROVIDERS[id];
     if (preset.keyVars.some((v) => v !== "AI_API_KEY" && process.env[v])) return id;
   }
-  return "anthropic";
+  // Nothing configured: fall back to the provider this product actually
+  // runs on, so guidance points at a free tier rather than a paid one.
+  return "gemini";
+}
+
+/**
+ * Providers to try, in order: the resolved primary first, then every other
+ * provider that has a key. A free tier that has run out for the day should
+ * degrade to another free tier rather than taking the whole product down.
+ * Order is deliberate — Gemini first for Traditional Chinese quality, then
+ * the high-volume free tiers.
+ */
+const FAILOVER_ORDER: ProviderId[] = [
+  "gemini",
+  "groq",
+  "openrouter",
+  "mistral",
+  "xai",
+  "anthropic",
+];
+
+/**
+ * Providers we know are rate-limited right now, and the moment they are
+ * worth trying again.
+ *
+ * Without this, a chain of [gemini, groq] spends a doomed call on Gemini
+ * before every single fallback for as long as Gemini's quota is spent —
+ * slow, and it keeps the exhausted provider pinned at its limit. Rate-limit
+ * replies carry their own "retry in 41.4s", so honour it: the two providers
+ * genuinely take turns instead of one always going first.
+ *
+ * In-memory and per-instance on purpose. It is a hint, never a gate — a
+ * cooling provider is still tried if it is the only one left.
+ */
+const coolingUntil = new Map<ProviderId, number>();
+
+/** Seconds until this provider is worth trying again; 0 when it is ready. */
+export function providerCoolingFor(id: ProviderId, now = Date.now()): number {
+  const until = coolingUntil.get(id);
+  if (until == null) return 0;
+  if (until <= now) {
+    coolingUntil.delete(id);
+    return 0;
+  }
+  return Math.ceil((until - now) / 1000);
+}
+
+export function markProviderCooling(id: ProviderId, seconds: number, now = Date.now()): void {
+  // Clamped: a provider is never parked for more than five minutes, so a
+  // misparsed number cannot take a provider out of rotation for the day.
+  const s = Math.max(1, Math.min(300, Math.ceil(seconds)));
+  coolingUntil.set(id, now + s * 1000);
+}
+
+/** Test seam — no production caller clears the whole map. */
+export function resetProviderCooling(): void {
+  coolingUntil.clear();
+}
+
+/**
+ * Providers state their own backoff: Gemini says "Please retry in 41.46s",
+ * Groq says "try again in 21.9225s". Use it when present so we wait exactly
+ * as long as we were asked to, and no longer.
+ */
+export function retryAfterSeconds(message: string, fallback = 60): number {
+  const m = /(?:retry|try again) in ([0-9]+(?:\.[0-9]+)?)\s*s/i.exec(message);
+  return m ? Math.ceil(Number(m[1])) : fallback;
+}
+
+export function providerChain(): ProviderId[] {
+  const primary = resolveProviderId();
+  const chain = [primary];
+  // An explicit AI_PROVIDER choice means "use this one"; only fail over
+  // when the choice was inferred from whichever key happened to be present.
+  if (process.env.AI_PROVIDER?.trim()) return chain;
+
+  for (const id of FAILOVER_ORDER) {
+    if (id === primary || chain.includes(id)) continue;
+    if (providerApiKey(id)) chain.push(id);
+  }
+  // A provider that just told us it is rate-limited goes to the back rather
+  // than being tried first again. sort() is stable, so preference order
+  // survives inside each group.
+  return chain.sort(
+    (a, b) => (providerCoolingFor(a) ? 1 : 0) - (providerCoolingFor(b) ? 1 : 0),
+  );
+}
+
+/**
+ * How large a single request the AI can actually serve right now.
+ *
+ * A ten-minute briefing needs a big budget. Groq's free tier tops out at
+ * 8,000 tokens a minute, so when Gemini is standing down and Groq is
+ * carrying the work, asking for 16,000 produces a briefing that stops
+ * early — worse than not offering it. This reports the ceiling of the best
+ * provider currently in rotation, so the interface can offer only what it
+ * can finish.
+ *
+ * Returns 0 when nothing is available: no key configured, or everything is
+ * rate-limited. A provider with no stated ceiling reports NO_CEILING.
+ */
+export const NO_CEILING = Number.MAX_SAFE_INTEGER;
+
+export function availableTokenCapacity(): number {
+  const chain = providerChain();
+  for (const id of chain) {
+    if (!providerApiKey(id)) continue;
+    if (providerCoolingFor(id) > 0) continue; // rate-limited: not usable now
+    return PROVIDERS[id].maxTokens ?? NO_CEILING;
+  }
+  return 0;
+}
+
+/** Quota and transient failures are worth retrying elsewhere; a bad key is not. */
+export function isFailoverWorthy(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/rejected the API key/i.test(message)) return false;
+  return /quota|rate limit|HTTP 5\d\d|could not be reached|unreachable|network|timed? ?out|empty response/i.test(
+    message,
+  );
 }
 
 export function providerApiKey(id: ProviderId): string | undefined {
@@ -141,10 +280,45 @@ export interface ChatMessage {
   content: string;
 }
 
+/**
+ * A provider that is temporarily out of quota, carrying the wait it asked
+ * for. The message stays reader-safe; retryAfter is what the failover uses.
+ */
+export class RateLimitError extends Error {
+  readonly retryAfter: number;
+  constructor(message: string, retryAfter: number) {
+    super(message);
+    this.name = "RateLimitError";
+    this.retryAfter = retryAfter;
+  }
+}
+
 export class AiNotConfiguredError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "AiNotConfiguredError";
+  }
+}
+
+/**
+ * Pull a readable sentence out of a provider error body.
+ *
+ * Shapes differ by vendor: OpenAI-style is `{error:{message}}`, Gemini's
+ * compatibility endpoint returns `[{error:{message}}]`. Anything else
+ * yields an empty string rather than raw JSON — a reader must never be
+ * shown a payload dump.
+ */
+export function extractProviderMessage(body: string): string {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    const candidate = Array.isArray(parsed) ? parsed[0] : parsed;
+    const message = (candidate as { error?: { message?: string } })?.error?.message;
+    if (typeof message !== "string" || !message.trim()) return "";
+    // Trim to the first sentence and drop trailing help URLs.
+    const firstSentence = message.split(/(?<=\.)\s/)[0].trim();
+    return firstSentence.replace(/\s*https?:\/\/\S+/g, "").slice(0, 160);
+  } catch {
+    return "";
   }
 }
 
@@ -183,22 +357,28 @@ export async function completeOpenAiCompatible(options: {
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    // Surface the provider's own message; it explains quota and key problems
-    // far better than a generic failure would.
-    let detail = body.slice(0, 300);
-    try {
-      const parsed = JSON.parse(body) as { error?: { message?: string } };
-      if (parsed.error?.message) detail = parsed.error.message;
-    } catch {
-      /* keep the raw snippet */
-    }
+    const detail = extractProviderMessage(body);
+    // The full provider payload goes to server logs; the thrown message is
+    // what a reader may see, so it stays short and free of raw JSON.
+    console.error(`AI provider HTTP ${res.status}: ${body.slice(0, 500)}`);
+
     if (res.status === 401 || res.status === 403) {
-      throw new Error(`AI provider rejected the API key: ${detail}`);
+      throw new Error("The AI provider rejected the API key. Check the key is current.");
     }
     if (res.status === 429) {
-      throw new Error(`AI provider rate limit reached: ${detail}`);
+      // The reader sees a calm sentence; the retry window is carried on the
+      // error so the failover can stand this provider down for exactly as
+      // long as it asked, rather than guessing. Parsed from the raw body,
+      // which is where the vendors put it.
+      throw new RateLimitError(
+        "AI quota reached for now — this resets on the provider's own schedule. " +
+          "Existing content is unaffected.",
+        retryAfterSeconds(body),
+      );
     }
-    throw new Error(`AI provider error (HTTP ${res.status}): ${detail}`);
+    throw new Error(
+      `AI provider error (HTTP ${res.status})${detail ? `: ${detail}` : "."}`,
+    );
   }
 
   const data = (await res.json()) as {

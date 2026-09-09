@@ -10,11 +10,15 @@ export async function GET(req: NextRequest) {
   }
   const symbol = req.nextUrl.searchParams.get("symbol");
   const interval = req.nextUrl.searchParams.get("interval") ?? "1day";
+  const points = Math.min(
+    260,
+    Math.max(30, Number(req.nextUrl.searchParams.get("points")) || 90),
+  );
   if (!symbol) {
     return NextResponse.json({ ok: false, error: "symbol is required" }, { status: 400 });
   }
   try {
-    const series = await getCachedSeries(symbol, interval, 90);
+    const series = await getCachedSeries(symbol, interval, points);
     return NextResponse.json({ ok: true, configured: true, series });
   } catch (err) {
     const kind = err instanceof MarketDataError ? err.kind : "provider-error";

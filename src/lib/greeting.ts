@@ -36,21 +36,21 @@ export function dayPart(hour: number): DayPart {
  */
 const GREETINGS: Record<DayPart, { en: string; zh: string }[]> = {
   morning: [
-    { en: "Good morning, Tony", zh: "Tony，早晨" },
-    { en: "Morning, Tony", zh: "早晨，Tony" },
-    { en: "A good morning to you, Tony", zh: "Tony，早晨好" },
+    { en: "Good morning", zh: "早晨" },
+    { en: "A good morning to you", zh: "早晨好" },
+    { en: "Morning — here is the day", zh: "早晨，今日概覽" },
   ],
   afternoon: [
-    { en: "Good afternoon, Tony", zh: "Tony，午安" },
-    { en: "Afternoon, Tony", zh: "午安，Tony" },
+    { en: "Good afternoon", zh: "午安" },
+    { en: "A good afternoon to you", zh: "午安，下午好" },
   ],
   evening: [
-    { en: "Good evening, Tony", zh: "Tony，晚安" },
-    { en: "Evening, Tony", zh: "晚安，Tony" },
+    { en: "Good evening", zh: "晚安" },
+    { en: "A good evening to you", zh: "晚上好" },
   ],
   night: [
-    { en: "Good evening, Tony", zh: "Tony，夜安" },
-    { en: "A quiet hour, Tony", zh: "夜深了，Tony" },
+    { en: "Good evening", zh: "夜安" },
+    { en: "A quiet hour", zh: "夜深了" },
   ],
 };
 

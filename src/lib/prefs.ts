@@ -1,4 +1,4 @@
-import { cache } from "react";
+﻿import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 
@@ -6,6 +6,7 @@ export interface InterestWeights {
   markets: number;
   property: number;
   architecture: number;
+  art: number;
   infrastructure: number;
   government: number;
   hk: number;
@@ -23,6 +24,17 @@ export interface RankWeights {
   novelty: number;
 }
 
+/** Reading Comfort (brief §24–25): adapts the design, never replaces it. */
+export interface ComfortSettings {
+  textSize: "normal" | "large" | "xlarge" | "max";
+  lineSpacing: "compact" | "comfortable" | "spacious";
+  density: "compact" | "comfortable" | "large";
+  contrast: "standard" | "high";
+  articleWidth: "standard" | "focused" | "wide";
+  motion: "standard" | "reduced";
+  comfortMode: boolean;
+}
+
 export interface Preferences {
   onboarded: boolean;
   language: "en" | "zh" | "both";
@@ -31,6 +43,9 @@ export interface Preferences {
   timezone: string;
   interests: InterestWeights;
   rankWeights: RankWeights;
+  comfort: ComfortSettings;
+  /** Epoch ms of the previous visit, for "Since your last visit". */
+  lastVisitAt: number | null;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -43,6 +58,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     markets: 90,
     property: 80,
     architecture: 80,
+    art: 70,
     infrastructure: 60,
     government: 55,
     hk: 85,
@@ -58,6 +74,16 @@ export const DEFAULT_PREFERENCES: Preferences = {
     corroboration: 0.1,
     novelty: 0.05,
   },
+  comfort: {
+    textSize: "normal",
+    lineSpacing: "comfortable",
+    density: "comfortable",
+    contrast: "standard",
+    articleWidth: "standard",
+    motion: "standard",
+    comfortMode: false,
+  },
+  lastVisitAt: null,
 };
 
 /**
@@ -79,11 +105,26 @@ export const getPreferences = cache(async function getPreferences(): Promise<Pre
       ...parsed,
       interests: { ...DEFAULT_PREFERENCES.interests, ...parsed.interests },
       rankWeights: { ...DEFAULT_PREFERENCES.rankWeights, ...parsed.rankWeights },
+      comfort: { ...DEFAULT_PREFERENCES.comfort, ...parsed.comfort },
     };
   } catch {
     return DEFAULT_PREFERENCES;
   }
 });
+
+/**
+ * Track dashboard visits for "Since your last visit". Returns the PREVIOUS
+ * visit time (null on first visit) and refreshes the marker only after a
+ * 30-minute quiet gap, so a browsing session counts as one visit.
+ */
+export async function trackVisit(now: number = Date.now()): Promise<number | null> {
+  const prefs = await getPreferences();
+  const previous = prefs.lastVisitAt;
+  if (!previous || now - previous > 30 * 60 * 1000) {
+    void savePreferences({ lastVisitAt: now }).catch(() => {});
+  }
+  return previous;
+}
 
 export async function savePreferences(prefs: Partial<Preferences>): Promise<Preferences> {
   const db = await getDb();

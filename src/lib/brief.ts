@@ -90,6 +90,7 @@ export async function generateDailyBrief(): Promise<{
     { key: "hk", articleIds: pickSection(recent, used, (a) => a.region === "hk" && a.category !== "property" && a.category !== "architecture", 3) },
     { key: "property", articleIds: pickSection(recent, used, (a) => a.category === "property", 3) },
     { key: "architecture", articleIds: pickSection(recent, used, (a) => a.category === "architecture" || a.category === "infrastructure", 3) },
+    { key: "art", articleIds: pickSection(recent, used, (a) => a.category === "art", 2) },
     { key: "china", articleIds: pickSection(recent, used, (a) => a.region === "china" || a.region === "apac", 2) },
     { key: "global", articleIds: pickSection(recent, used, (a) => a.region === "global", 2) },
   ].filter((s) => s.articleIds.length > 0);

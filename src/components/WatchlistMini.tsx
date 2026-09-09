@@ -81,11 +81,17 @@ export default function WatchlistMini({
                   {q.quote.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
                 <span
-                  className={`w-16 text-right ${(q.quote.percentChange ?? 0) >= 0 ? "text-up" : "text-down"}`}
+                  className={`w-20 text-right ${(q.quote.percentChange ?? 0) >= 0 ? "text-up" : "text-down"}`}
                 >
-                  {q.quote.percentChange != null
-                    ? `${q.quote.percentChange >= 0 ? "+" : ""}${q.quote.percentChange.toFixed(2)}%`
-                    : "—"}
+                  {q.quote.percentChange != null ? (
+                    <>
+                      <span aria-hidden>{q.quote.percentChange >= 0 ? "▲" : "▼"}</span>
+                      {q.quote.percentChange >= 0 ? "+" : ""}
+                      {q.quote.percentChange.toFixed(2)}%
+                    </>
+                  ) : (
+                    "—"
+                  )}
                 </span>
               </span>
             ) : (

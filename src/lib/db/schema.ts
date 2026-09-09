@@ -140,7 +140,71 @@ export const chatConversations = sqliteTable("chat_conversations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   title: text("title"),
   createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at"),
+  pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  language: text("language"), // en | zh-HK, detected from first message
 });
+
+/**
+ * Explicit user-controlled memory (brief §22–23): things Tony has asked the
+ * product to remember. Inspectable, editable, deletable in Settings. These
+ * are PREFERENCES for the assistant — they are never treated as current
+ * factual evidence and never override fresh retrieval.
+ */
+export const userMemories = sqliteTable("user_memories", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  content: text("content").notNull(),
+  category: text("category"), // markets | property | architecture | art | general
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+/**
+ * Generated audio briefings (brief §11–17). The transcript and its source
+ * article ids are stored; audio itself is synthesised at playback by the
+ * client TTS provider, so nothing is hosted and old episodes can never be
+ * mistaken for live audio. dateKey marks the news day the episode covers.
+ */
+export const audioBriefs = sqliteTable(
+  "audio_briefs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    dateKey: text("date_key").notNull(), // YYYY-MM-DD (Asia/Hong_Kong)
+    format: text("format").notNull(), // quick | morning | deep | dialogue
+    language: text("language").notNull(), // en | zh-HK | bilingual
+    title: text("title").notNull(),
+    /** JSON [{speaker, text}] — single-presenter scripts use one speaker. */
+    transcript: text("transcript").notNull(),
+    sourceIds: text("source_ids").notNull(), // JSON number[] of article ids
+    model: text("model").notNull(),
+    wordCount: integer("word_count").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("audio_briefs_date_idx").on(t.dateKey)],
+);
+
+/** User-created market alerts (brief §39). Never created automatically. */
+export const stockAlerts = sqliteTable("stock_alerts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  symbol: text("symbol").notNull(),
+  kind: text("kind").notNull(), // above | below | move_pct
+  threshold: real("threshold").notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at").notNull(),
+  lastTriggeredAt: integer("last_triggered_at"),
+});
+
+export const alertEvents = sqliteTable(
+  "alert_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    alertId: integer("alert_id").notNull(),
+    triggeredAt: integer("triggered_at").notNull(),
+    message: text("message").notNull(),
+  },
+  (t) => [index("alert_events_alert_idx").on(t.alertId)],
+);
 
 export const chatMessages = sqliteTable(
   "chat_messages",
@@ -169,6 +233,20 @@ export const syncLogs = sqliteTable(
   },
   (t) => [index("sync_source_idx").on(t.sourceId)],
 );
+
+/**
+ * Authorised users (Google Sign-In). Single-user today; the shape supports
+ * additional allowlisted users later. Session state itself lives in the
+ * signed cookie, not the database.
+ */
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  picture: text("picture"),
+  createdAt: integer("created_at").notNull(),
+  lastLoginAt: integer("last_login_at"),
+});
 
 /**
  * Structured facts for built-environment stories (brief §57–58). Every field

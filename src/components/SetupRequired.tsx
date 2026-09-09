@@ -24,7 +24,7 @@ export default function SetupRequired({ detail }: { detail: string }) {
   return (
     <div className="mx-auto max-w-2xl px-6 py-20">
       <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.3em] text-accent">
-        Tony Daily
+        The Daily
       </p>
       <h1 className="mb-4 font-serif text-3xl text-ink">Setup required</h1>
       <p className="mb-8 text-ink-2">

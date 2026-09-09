@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb, schema } from "@/lib/db";
 import { aiModelId, aiProviderLabel, isAiConfigured } from "@/lib/ai";
+import { providerChain } from "@/lib/ai/providers";
 import { authEnabled } from "@/lib/auth";
 import { telegramConfigured } from "@/lib/notify/telegram";
 
@@ -25,6 +26,10 @@ export async function GET() {
     aiConfigured: isAiConfigured(),
     aiProvider: aiProviderLabel(),
     aiModel: isAiConfigured() ? aiModelId() : null,
+    // Which providers would actually serve a request, in order. Without
+    // this there is no way to tell from outside whether a deployment has
+    // a fallback configured or is one quota away from going dark.
+    aiChain: providerChain(),
     marketDataConfigured: Boolean(process.env.TWELVE_DATA_API_KEY),
     telegramConfigured: telegramConfigured(),
     timezone: process.env.APP_TIMEZONE ?? "Asia/Hong_Kong",

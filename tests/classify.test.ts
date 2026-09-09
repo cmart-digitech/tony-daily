@@ -89,3 +89,168 @@ describe("classifyRegion", () => {
     expect(classifyRegion("A new concert hall opens", dezeen)).toBe("global");
   });
 });
+
+describe("art section only carries art", () => {
+  const scmpBusiness = getSource("scmp-business")!;
+  const hkgovEn = getSource("hkgov-en-top")!;
+  const hkgovZh = getSource("hkgov-zh-top")!;
+  const artNewspaper = getSource("theartnewspaper")!;
+  const artnet = getSource("artnet-news")!;
+
+  // Real headlines that were wrongly filling the Art section. Each one
+  // matched a bare venue word — "exhibition", "galleries", 展覽 — in
+  // trade-show, government or product copy.
+  it("keeps a biotech five-year plan out of Art", () => {
+    expect(
+      classifyCategory(
+        "Hong Kong targets biomedicine powerhouse status in debut 5-year plan. " +
+          "BIOHK2026 展覽 drew investors to the forum.",
+        scmpBusiness,
+      ),
+    ).not.toBe("art");
+  });
+
+  it("keeps a Belt and Road summit out of Art", () => {
+    expect(classifyCategory("CE spotlights HK at Belt-Road Summit exhibition", hkgovEn)).not.toBe(
+      "art",
+    );
+    expect(classifyCategory("逾六千政商領袖出席一帶一路論壇及展覽", hkgovZh)).not.toBe("art");
+  });
+
+  it("keeps a design-product story out of Art", () => {
+    expect(
+      classifyCategory("Bugaboo makes pram from orange peel and old egg cartons", dezeen),
+    ).not.toBe("art");
+  });
+
+  it("keeps design galleries and design fairs out of Art", () => {
+    // Real Dezeen headlines: the design trade, not the art market.
+    expect(
+      classifyCategory(
+        "Five galleries injecting renewed energy into the London design scene. " +
+          "A clutch of young design galleries are shaking the cobwebs off London.",
+        dezeen,
+      ),
+    ).not.toBe("art");
+    expect(
+      classifyCategory(
+        "Beton Brut and Isokon reimagine Marcel Breuer furniture. " +
+          "Design gallery Beton Brut has teamed up with manufacturer Isokon.",
+        dezeen,
+      ),
+    ).not.toBe("art");
+  });
+
+  it("does not treat a passing artist credit as an art story", () => {
+    // Real Dezeen headline: the subject is a building, not the artwork.
+    expect(
+      classifyCategory(
+        "Crystal-shaped sauna rises from former industrial site in Sweden. " +
+          "Stockholm-based artist duo Bigert & Bergstrom has created a sauna.",
+        dezeen,
+      ),
+    ).not.toBe("art");
+  });
+
+  it("keeps a science museum out of Art", () => {
+    expect(classifyCategory("Science Museum reopens after refit", rthk)).not.toBe("art");
+  });
+
+  // ...while genuine art coverage still lands there.
+  it("still classifies auction-market news as art", () => {
+    expect(
+      classifyCategory("$60 Million Modernist Trove Led by Rare Signacs Heads to Auction", artnet),
+    ).toBe("art");
+    expect(
+      classifyCategory("Two Renoir paintings worth EUR9m stolen from Renoir Museum", artNewspaper),
+    ).toBe("art");
+  });
+
+  it("still classifies artists and artworks as art from a general source", () => {
+    expect(
+      classifyCategory("Museum acquires major artwork by a Hong Kong artist", rthk),
+    ).toBe("art");
+  });
+
+  it("classifies a qualified art exhibition from a general source", () => {
+    expect(classifyCategory("M+ opens a major art exhibition this autumn", rthk)).toBe("art");
+    expect(classifyCategory("香港美術館舉行藝術展覽", getSource("rthk-zh-local")!)).toBe("art");
+  });
+
+  it("keeps dedicated art publishers on their beat without keyword help", () => {
+    // No art keyword at all — the source default must still carry it.
+    expect(classifyCategory("A quiet week in the trade", artNewspaper)).toBe("art");
+  });
+});
+
+describe("art means art, not the art world's politics", () => {
+  const artNewspaper = getSource("theartnewspaper")!;
+  const hyper = getSource("hyperallergic")!;
+
+  // Real headlines that were leading the Art section.
+  it("keeps a museum director's resignation out of Art", () => {
+    expect(
+      classifyCategory(
+        "Lonnie Bunch's Resignation Is a Wake-Up Call. Smithsonian Secretary steps down amid attacks.",
+        hyper,
+      ),
+    ).not.toBe("art");
+    expect(
+      classifyCategory("Smithsonian leader Lonnie G. Bunch to retire", artNewspaper),
+    ).not.toBe("art");
+  });
+
+  it("keeps a funding bill out of Art", () => {
+    expect(
+      classifyCategory(
+        "How Trump's signature bill could make arts education in the US even more expensive",
+        artNewspaper,
+      ),
+    ).not.toBe("art");
+  });
+
+  it("keeps a staff walkout out of Art", () => {
+    expect(
+      classifyCategory("Striking Workers Shutter Three V&A London Locations", hyper),
+    ).not.toBe("art");
+  });
+
+  it("still keeps institutional stories that are ABOUT art", () => {
+    // A resignation is not art; a resignation over a disputed painting is.
+    expect(
+      classifyCategory(
+        "Director resigns after the museum returns a Nazi-looted Old Master painting",
+        artNewspaper,
+      ),
+    ).toBe("art");
+  });
+
+  it("recognises makers and works the old list missed", () => {
+    for (const headline of [
+      "A Painter Once Silenced by East Germany Gets His Due",
+      "New Jersey Black Women Printmakers Shaping the American Narrative",
+      "The Bayeux Tapestry's British Museum Debut Is a Hard-Won Triumph",
+      "Can triennials reduce their environmental impact?",
+    ]) {
+      expect(classifyCategory(headline, rthk), headline).toBe("art");
+    }
+  });
+
+  it("does not take a design publisher off its beat for one work-word", () => {
+    // Real Dezeen headline: a shop interior that happens to contain sculptures.
+    expect(
+      classifyCategory(
+        "I IN clads Human Made store in handcrafted Korean celadon tiles. " +
+          "Tokyo studio I IN combined tiles with playful animal sculptures in a store.",
+        dezeen,
+      ),
+    ).not.toBe("art");
+  });
+
+  it("but a general newsroom still promotes a genuine art story", () => {
+    // RTHK has no competing specialism, so the ordinary vocabulary applies.
+    expect(
+      classifyCategory("Two Renoir paintings worth millions stolen from a museum", rthk),
+    ).toBe("art");
+  });
+});

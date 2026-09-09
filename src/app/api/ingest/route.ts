@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runIngest } from "@/lib/ingest";
+import { reclassifyAllArticles, runIngest } from "@/lib/ingest";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -32,6 +32,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // ?reclassify=all re-applies classification to every stored article, for
+    // after a rules change. Secret-protected: it rewrites categories across
+    // the whole index, which is not something a page visit should trigger.
+    if (isCron && req.nextUrl.searchParams.get("reclassify") === "all") {
+      const changed = await reclassifyAllArticles();
+      return NextResponse.json({ ok: true, reclassified: changed });
+    }
     const results = await runIngest({ force: isCron });
     return NextResponse.json({ ok: true, results });
   } catch (err) {

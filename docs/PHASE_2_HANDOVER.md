@@ -1,4 +1,4 @@
-# TONY DAILY — Phase 1 Handover & Phase 2 Scope
+# THE DAILY — Phase 1 Handover & Phase 2 Scope
 
 Status as of **13 August 2026**. Written as the input to a Phase 2 brief:
 Part A records what exists and is verified, Part B records what is missing,
@@ -81,12 +81,12 @@ label; delayed data is never called real-time.
 xAI Grok, OpenRouter, Mistral, Anthropic, or any OpenAI-compatible endpoint;
 one key switches provider. Features: three summary levels (cached by content
 hash + language + level + provider:model), Daily Brief overview, and Ask
-Tony Daily with retrieval-before-generation and clickable citations. Output
+The Daily with retrieval-before-generation and clickable citations. Output
 is rendered as clean typography — the model is asked for plain prose and any
 Markdown that slips through is converted, never shown raw.
 
 **UI** — Today, Markets, Property, Architecture, Watchlist (+ per-stock
-detail), Saved, Search, Settings, Ask Tony Daily, Onboarding, Article view.
+detail), Saved, Search, Settings, Ask The Daily, Onboarding, Article view.
 Light/dark/system themes, EN / 繁 / 雙語, responsive, time-aware bilingual
 greeting on Hong Kong time.
 

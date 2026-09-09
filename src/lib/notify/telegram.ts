@@ -21,6 +21,7 @@ const SECTION_TITLES: Record<string, string> = {
   hk: "Hong Kong · 香港",
   property: "Property · 地產",
   architecture: "Architecture · 建築",
+  art: "Art · 藝術",
   china: "Greater China / Asia · 大中華及亞太",
   global: "Global · 環球",
 };
@@ -59,14 +60,11 @@ export async function composeBriefMessage(
   return lines.join("\n").slice(0, 4000); // Telegram message limit is 4096
 }
 
-export async function sendBriefToTelegram(
-  content: DailyBriefContent,
-  dateLabel: string,
+/** Send one HTML-formatted message; used by the brief and by market alerts. */
+export async function sendTelegramMessage(
+  html: string,
 ): Promise<{ sent: boolean; reason?: string }> {
   if (!telegramConfigured()) return { sent: false, reason: "not-configured" };
-  const message = await composeBriefMessage(content, dateLabel);
-  if (!message) return { sent: false, reason: "no-stories" };
-
   try {
     const res = await fetch(
       `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -75,7 +73,7 @@ export async function sendBriefToTelegram(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: process.env.TELEGRAM_CHAT_ID,
-          text: message,
+          text: html.slice(0, 4000),
           parse_mode: "HTML",
           link_preview_options: { is_disabled: true },
         }),
@@ -88,9 +86,16 @@ export async function sendBriefToTelegram(
     }
     return { sent: true };
   } catch (err) {
-    return {
-      sent: false,
-      reason: err instanceof Error ? err.message : "network-error",
-    };
+    return { sent: false, reason: err instanceof Error ? err.message : "network-error" };
   }
+}
+
+export async function sendBriefToTelegram(
+  content: DailyBriefContent,
+  dateLabel: string,
+): Promise<{ sent: boolean; reason?: string }> {
+  if (!telegramConfigured()) return { sent: false, reason: "not-configured" };
+  const message = await composeBriefMessage(content, dateLabel);
+  if (!message) return { sent: false, reason: "no-stories" };
+  return sendTelegramMessage(message);
 }

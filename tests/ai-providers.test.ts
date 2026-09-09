@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  extractProviderMessage,
+  isFailoverWorthy,
+  providerChain,
   PROVIDERS,
   providerApiKey,
   providerBaseUrl,
@@ -38,8 +41,11 @@ afterEach(() => {
 });
 
 describe("provider resolution", () => {
-  it("defaults to Anthropic when nothing is configured", () => {
-    expect(resolveProviderId()).toBe("anthropic");
+  it("falls back to a free-tier provider when nothing is configured", () => {
+    // Guidance shown to the operator names this provider, so the default
+    // must point at a free tier rather than a paid one.
+    expect(resolveProviderId()).toBe("gemini");
+    expect(PROVIDERS.gemini.freeTier).toMatch(/free/i);
   });
 
   it("auto-selects the provider whose key is present", () => {
@@ -60,6 +66,11 @@ describe("provider resolution", () => {
 
   it("ignores an unknown AI_PROVIDER rather than crashing", () => {
     process.env.AI_PROVIDER = "not-a-provider";
+    expect(resolveProviderId()).toBe("gemini");
+  });
+
+  it("still selects Anthropic when its key is the one present", () => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
     expect(resolveProviderId()).toBe("anthropic");
   });
 
@@ -122,6 +133,92 @@ describe("model selection", () => {
     expect(providerModel("anthropic")).toBe("claude-legacy");
     // ...but only for Anthropic.
     expect(providerModel("groq")).toBe(PROVIDERS.groq.defaultModel);
+  });
+});
+
+describe("provider failover chain", () => {
+  it("is just the primary when only one key exists", () => {
+    process.env.GEMINI_API_KEY = "k";
+    expect(providerChain()).toEqual(["gemini"]);
+  });
+
+  it("falls back to other configured free tiers, Gemini first", () => {
+    process.env.GROQ_API_KEY = "k";
+    process.env.GEMINI_API_KEY = "k";
+    const chain = providerChain();
+    expect(chain[0]).toBe("gemini");
+    expect(chain).toContain("groq");
+  });
+
+  it("never includes a provider without a key", () => {
+    process.env.GROQ_API_KEY = "k";
+    const chain = providerChain();
+    expect(chain).toEqual(["groq"]);
+    expect(chain).not.toContain("mistral");
+  });
+
+  it("respects an explicit AI_PROVIDER and does not fail over", () => {
+    process.env.GEMINI_API_KEY = "k";
+    process.env.GROQ_API_KEY = "k";
+    process.env.AI_PROVIDER = "groq";
+    expect(providerChain()).toEqual(["groq"]);
+  });
+});
+
+describe("isFailoverWorthy", () => {
+  it("retries elsewhere on quota and rate limits", () => {
+    expect(isFailoverWorthy(new Error("AI quota reached for now"))).toBe(true);
+    expect(isFailoverWorthy(new Error("rate limit reached"))).toBe(true);
+  });
+
+  it("retries on transient server and network faults", () => {
+    expect(isFailoverWorthy(new Error("AI provider error (HTTP 503)"))).toBe(true);
+    expect(isFailoverWorthy(new Error("The AI provider could not be reached."))).toBe(true);
+  });
+
+  it("does NOT retry a rejected key — it would fail identically elsewhere", () => {
+    expect(
+      isFailoverWorthy(new Error("The AI provider rejected the API key. Check the key is current.")),
+    ).toBe(false);
+  });
+
+  it("does not retry ordinary bad requests", () => {
+    expect(isFailoverWorthy(new Error("AI provider error (HTTP 400): bad model"))).toBe(false);
+  });
+});
+
+describe("extractProviderMessage", () => {
+  it("reads the OpenAI-style error shape", () => {
+    expect(
+      extractProviderMessage(JSON.stringify({ error: { message: "Invalid API key." } })),
+    ).toBe("Invalid API key.");
+  });
+
+  it("reads Gemini's array-wrapped shape", () => {
+    // The live payload that leaked raw JSON into the UI.
+    const body = JSON.stringify([
+      {
+        error: {
+          code: 429,
+          message:
+            "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits.",
+        },
+      },
+    ]);
+    const message = extractProviderMessage(body);
+    expect(message).toBe("You exceeded your current quota, please check your plan and billing details.");
+    expect(message).not.toContain("{");
+    expect(message).not.toContain("http");
+  });
+
+  it("returns nothing rather than raw JSON for unknown shapes", () => {
+    expect(extractProviderMessage('{"weird":true}')).toBe("");
+    expect(extractProviderMessage("<html>gateway error</html>")).toBe("");
+  });
+
+  it("caps very long provider messages", () => {
+    const long = JSON.stringify({ error: { message: "x".repeat(500) } });
+    expect(extractProviderMessage(long).length).toBeLessThanOrEqual(160);
   });
 });
 

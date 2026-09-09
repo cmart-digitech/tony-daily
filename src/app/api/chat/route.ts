@@ -5,6 +5,7 @@ import { getDb, schema } from "@/lib/db";
 import { answerQuestion, isAiConfigured } from "@/lib/ai";
 import { extractQuerySymbols, searchArticles, toContext } from "@/lib/retrieval";
 import { getCachedQuote, isMarketDataConfigured } from "@/lib/market";
+import { indexChatMessage } from "@/lib/search/fts";
 import type { Quote } from "@/lib/market/types";
 
 export const dynamic = "force-dynamic";
@@ -56,9 +57,20 @@ export async function POST(req: NextRequest) {
   if (!conversationId) {
     const created = await db
       .insert(schema.chatConversations)
-      .values({ title: body.data.message.slice(0, 80), createdAt: Date.now() })
+      .values({
+        title: body.data.message.slice(0, 80),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        language: /[㐀-鿿]/.test(body.data.message) ? "zh-HK" : "en",
+      })
       .run();
     conversationId = Number(created.lastInsertRowid);
+  } else {
+    await db
+      .update(schema.chatConversations)
+      .set({ updatedAt: Date.now() })
+      .where(eq(schema.chatConversations.id, conversationId))
+      .run();
   }
 
   const history = (
@@ -71,7 +83,7 @@ export async function POST(req: NextRequest) {
     .sort((a, b) => a.id - b.id)
     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-  await db
+  const userMsg = await db
     .insert(schema.chatMessages)
     .values({
       conversationId,
@@ -80,9 +92,13 @@ export async function POST(req: NextRequest) {
       createdAt: Date.now(),
     })
     .run();
+  await indexChatMessage(Number(userMsg.lastInsertRowid), conversationId, body.data.message);
 
   // Retrieval before generation: indexed news + (if relevant) market data.
   const articles = (await searchArticles(body.data.message, 12)).map(toContext);
+  const memories = (await db.select().from(schema.userMemories).all()).map(
+    (m) => m.content,
+  );
   const quotes: Quote[] = [];
   if (isMarketDataConfigured()) {
     const watchlist = await db.select().from(schema.watchlistItems).all();
@@ -105,8 +121,9 @@ export async function POST(req: NextRequest) {
       articles,
       quotes,
       history,
+      memories,
     });
-    await db
+    const assistantMsg = await db
       .insert(schema.chatMessages)
       .values({
         conversationId,
@@ -116,6 +133,7 @@ export async function POST(req: NextRequest) {
         createdAt: Date.now(),
       })
       .run();
+    await indexChatMessage(Number(assistantMsg.lastInsertRowid), conversationId, text);
     return NextResponse.json({ ok: true, conversationId, text, citations });
   } catch (err) {
     return NextResponse.json(

@@ -20,6 +20,32 @@ const CATEGORY_KEYWORDS: Record<string, RegExp[]> = {
     /\b(infrastructure|railway|rail link|metro|mtr|airport|runway|bridge|tunnel|highway|reclamation|northern metropolis|kai tak|lantau)\b/i,
     /基建|鐵路|機場|跑道|大橋|隧道|填海|北部都會區|啟德/,
   ],
+  // Art means art -- works, artists, exhibitions of them, and the art
+  // market. Venue words alone do not qualify: "exhibition", "gallery",
+  // "museum" and 展覽 appear constantly in trade-show, biotech and
+  // government copy, and were promoting a biomedicine five-year plan and
+  // Belt and Road Summit coverage into this section. They count only when
+  // an art qualifier sits beside them. Dedicated art publishers do not
+  // rely on this list -- they keep their beat through the source default,
+  // so tightening here costs no genuine art coverage.
+  art: [
+    // The art market and its houses.
+    /\b(art auction|auction house|art market|art fair|art basel|frieze|sotheby'?s|christie'?s|bonhams|phillips auction|art dealer|gallerist|art collection|old master|art theft)\b/i,
+    // Works, makers and practice. An audit of the live section found real
+    // art coverage — a painter, printmakers, the Bayeux Tapestry — carried
+    // only by its publisher's default, because these words were missing.
+    // "painter" names someone by their art; a bare "artist" does not, since
+    // "artist duo has created a sauna" is an architecture story.
+    /\b(artworks?|paintings?|painters?|sculptures?|sculptors?|printmaking|printmakers?|engravings?|etchings?|lithographs?|murals?|tapestry|tapestries|ceramics|watercolou?rs?|oil on canvas)\b/i,
+    /\b(curator|curated by|retrospective|biennale|triennials?|documenta|art world|arts organisations?|art history|art critic)\b/i,
+    // Venue words, but only when qualified as art.
+    // "design gallery" and "design fair" are the design trade, not the art
+    // market -- Dezeen's furniture coverage was arriving here through them.
+    /\b(art|photography|sculpture|painting|craft) (exhibition|fair|gallery|galleries|museum|biennale|show)\b/i,
+    /\b(art museum|art galler(y|ies)|museum of (art|modern art|fine arts?)|national gallery)\b/i,
+    /拍賣行|藝術品|藝術家|畫廊|美術館|雙年展|藝術博覽|蘇富比|佳士得|富藝斯|藝術市場|策展/,
+    /(藝術|攝影|雕塑|繪畫)(展覽|展出|博覽|館)/,
+  ],
   markets: [
     /\b(stocks?|equit(y|ies)|hang seng|hsi|ipo|shares?|bond|earnings|dividend|market|index|nasdaq|s&p|dow|fed|interest rate|hkex|listing|profit warning|buyback)\b/i,
     /股市|恒指|恒生指數|港股|美股|上市|集資|供股|回購|派息|業績|加息|減息|債券/,
@@ -71,6 +97,43 @@ const REGION_KEYWORDS: Record<string, RegExp[]> = {
   ],
 };
 
+/**
+ * Institutional and political stories that arts publishers also cover: a
+ * museum director resigning, a funding bill, a staff walkout. Real news, but
+ * not art — and without this guard they ride an art publisher's source
+ * default straight into the Art section, which is how "Lonnie Bunch's
+ * Resignation Is a Wake-Up Call" came to lead it.
+ */
+const NON_ART_SUBJECT: RegExp[] = [
+  /\b(resign(s|ed|ation)?|steps? down|stepped down|to retire|retires|retirement|ousted|fired|dismissed|appointed|succeeds?)\b/i,
+  /\b(lawsuit|sues?|sued|subpoena|indict(ed|ment)?|investigation)\b/i,
+  /\b(strike|striking|walkout|union(is|iz)ed?|layoffs?|redundanc(y|ies)|pay dispute)\b/i,
+  /\b(funding bill|signature bill|budget cuts?|tax bill|congress|senate|white house|election|feminism)\b/i,
+];
+
+/** Is this about art itself — a work, a maker, a show, a sale? */
+function hasArtSubject(text: string): boolean {
+  return CATEGORY_KEYWORDS.art.some((re) => re.test(text));
+}
+
+/**
+ * The unambiguous art signals: the market, and shows that are explicitly
+ * art shows. A publisher that already has its own beat — Dezeen on
+ * architecture, SCMP on property — needs one of these before a story is
+ * taken off that beat and moved into Art. A shop fit-out that happens to
+ * contain "animal sculptures" is an interiors story, not an art story.
+ * Publishers with no competing specialism (RTHK, say) still promote on the
+ * ordinary vocabulary, so a stolen-Renoir report from a general newsroom
+ * lands in Art as it should.
+ */
+const ART_STRONG: RegExp[] = [
+  /\b(art auction|auction house|art market|art fair|art basel|frieze|sotheby'?s|christie'?s|bonhams|art dealer|gallerist|art collection|old master|art theft)\b/i,
+  /\b(art|photography|sculpture|painting|craft) (exhibition|fair|gallery|galleries|museum|biennale|show)\b/i,
+  /\b(art museum|art galler(y|ies)|museum of (art|modern art|fine arts?)|national gallery)\b/i,
+  /\b(curator|curated by|retrospective|biennale|triennials?|documenta|art world|art history|art critic)\b/i,
+  /拍賣行|藝術品|藝術家|畫廊|美術館|雙年展|藝術博覽|蘇富比|佳士得|富藝斯|藝術市場|策展/,
+];
+
 export function classifyCategory(
   text: string,
   source: SourceConfig,
@@ -79,6 +142,7 @@ export function classifyCategory(
   const priority: Category[] = [
     "property",
     "architecture",
+    "art",
     "infrastructure",
     "markets",
     "government",
@@ -94,10 +158,24 @@ export function classifyCategory(
     if (incident && builtEnvironment.has(cat) && !source.categories.includes(cat)) {
       return "general";
     }
+    // Taking a publisher off its own beat and into Art needs an unambiguous
+    // art signal, not one incidental work-word in an interiors piece.
+    if (cat === "art" && !source.categories.includes("art")) {
+      const ownsAnotherBeat = priority.some(
+        (c) => c !== "art" && source.categories.includes(c),
+      );
+      if (ownsAnotherBeat && !ART_STRONG.some((re) => re.test(text))) continue;
+    }
     return cat;
   }
   const first = source.categories[0];
   if (first && first !== "hk" && first !== "china" && first !== "world") {
+    // An arts publisher's default carries everything it prints. Institutional
+    // and political coverage with no art subject of its own does not belong
+    // in a section about art.
+    if (first === "art" && NON_ART_SUBJECT.some((re) => re.test(text)) && !hasArtSubject(text)) {
+      return "general";
+    }
     return first;
   }
   return "general";

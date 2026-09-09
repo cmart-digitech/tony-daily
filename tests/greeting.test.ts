@@ -50,10 +50,14 @@ describe("getGreeting", () => {
     expect(getGreeting(atHK(20)).en.toLowerCase()).toContain("evening");
   });
 
-  it("always addresses Tony by name", () => {
+  it("never addresses the reader by name", () => {
     for (const hour of [3, 8, 14, 20]) {
-      expect(getGreeting(atHK(hour)).en).toContain("Tony");
-      expect(getGreeting(atHK(hour)).zh).toContain("Tony");
+      // The greeting is warm but impersonal — the dashboard is private, so
+      // it does not need to say whose it is every time it is opened.
+      expect(getGreeting(atHK(hour)).en).not.toContain("Tony");
+      expect(getGreeting(atHK(hour)).zh).not.toContain("Tony");
+      expect(getGreeting(atHK(hour)).en.length).toBeGreaterThan(3);
+      expect(getGreeting(atHK(hour)).zh.length).toBeGreaterThan(1);
     }
   });
 
@@ -87,7 +91,8 @@ describe("greetingFor", () => {
   it("renders English only", () => {
     const g = greetingFor("en", atHK(14));
     expect(g.title).not.toContain("·");
-    expect(g.title).toContain("Tony");
+    expect(g.title).not.toContain("Tony");
+    expect(g.title).toMatch(/morning|afternoon|evening|quiet/i);
   });
 
   it("renders Chinese only", () => {

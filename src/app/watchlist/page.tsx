@@ -1,8 +1,10 @@
+import AlertsPanel from "@/components/AlertsPanel";
 import ArticleCard from "@/components/ArticleCard";
 import WatchlistBoard from "@/components/WatchlistBoard";
 import { t } from "@/lib/i18n";
 import { isMarketDataConfigured } from "@/lib/market";
-import { watchlistNews } from "@/lib/queries";
+import { telegramConfigured } from "@/lib/notify/telegram";
+import { watchlist, watchlistNews } from "@/lib/queries";
 import { getPreferences } from "@/lib/prefs";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +13,7 @@ export default async function WatchlistPage() {
   const prefs = await getPreferences();
   const lang = prefs.language;
   const news = await watchlistNews(8);
+  const items = await watchlist();
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -31,6 +34,12 @@ export default async function WatchlistPage() {
           updated: t(lang, "updated"),
           disclaimer: t(lang, "disclaimer"),
         }}
+      />
+      <AlertsPanel
+        symbols={items.map((i) => i.symbol)}
+        telegramConfigured={telegramConfigured()}
+        marketDataConfigured={isMarketDataConfigured()}
+        zh={lang === "zh"}
       />
       {news.length > 0 && (
         <section className="mt-14">
