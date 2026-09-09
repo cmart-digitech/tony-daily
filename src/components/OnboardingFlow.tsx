@@ -100,10 +100,10 @@ export default function OnboardingFlow({ marketConfigured }: { marketConfigured:
   return (
     <div className="mx-auto max-w-xl px-6 py-16">
       <p className="mb-2 font-mono text-xs uppercase tracking-[0.3em] text-accent">
-        Tony Daily
+        The Daily
       </p>
       <h1 className="mb-1 font-serif text-3xl text-ink">
-        {zh ? "歡迎使用 Tony Daily" : "Welcome to Tony Daily"}
+        {zh ? "歡迎使用 The Daily" : "Welcome to The Daily"}
       </h1>
       <p className="mb-10 text-sm text-ink-3">
         {step + 1} / 4 — {stepTitle}

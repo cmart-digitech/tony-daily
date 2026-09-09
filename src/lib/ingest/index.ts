@@ -389,13 +389,33 @@ async function upsertSourceState(
  * only rows whose category actually changes are written back.
  */
 export async function reclassifyRecentArticles(): Promise<number> {
+  return reclassify(false);
+}
+
+/**
+ * Re-apply classification to the WHOLE index.
+ *
+ * The routine pass above only revisits the recent window, which is right for
+ * every ingest run but leaves older rows frozen under whatever rules existed
+ * when they arrived. After the Art rules were tightened, an audit found the
+ * section still carrying a Food Expo and a fintech conference — rows
+ * classified weeks earlier and never revisited. Run this after changing
+ * anything in classify.ts, or the fix only applies to tomorrow's news.
+ */
+export async function reclassifyAllArticles(): Promise<number> {
+  return reclassify(true);
+}
+
+async function reclassify(all: boolean): Promise<number> {
   const db = await getDb();
   const cutoff = Date.now() - RESCORE_WINDOW_MS;
-  const recent = await db
-    .select()
-    .from(schema.articles)
-    .where(gt(schema.articles.fetchedAt, cutoff))
-    .all();
+  const recent = all
+    ? await db.select().from(schema.articles).all()
+    : await db
+        .select()
+        .from(schema.articles)
+        .where(gt(schema.articles.fetchedAt, cutoff))
+        .all();
   if (recent.length === 0) return 0;
 
   const sourceById = new Map(SOURCES.map((s) => [s.id, s]));

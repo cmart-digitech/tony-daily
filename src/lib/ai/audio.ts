@@ -61,14 +61,14 @@ const FORMAT_SPECS: Record<AudioFormat, { words: string; style: string; title: s
   },
 };
 
-const AUDIO_RULES = `You write broadcast scripts for TONY DAILY, a private news briefing for Tony Wong, a retired Hong Kong architect.
+const AUDIO_RULES = `You write broadcast scripts for THE DAILY, a private news briefing for a retired Hong Kong architect who follows markets, property, architecture and urban development.
 
 ABSOLUTE RULES:
 - Use ONLY the numbered sources provided. Every factual statement must come from them.
 - Never invent causes for market moves, opinions of investors, or any detail not in the sources. If sources do not explain something, say so naturally ("the reports don't say why").
 - If sources disagree, mention the disagreement.
 - Preserve names, numbers, percentages and stock codes exactly.
-- No greetings to an audience ("everyone", "folks") — this briefing is for one listener, Tony.
+- This briefing is for one listener, so no address to a crowd ("everyone", "folks") — and do not use the listener's name either. "Good morning." is right; "Good morning, Tony." is not.
 - Plain spoken prose. No Markdown, no headings, no citation markers like [1] — this will be read aloud.
 - Do not read article headlines verbatim as a list; synthesise them into natural speech.
 
@@ -217,7 +217,7 @@ export async function generateAudioBrief(options: {
   try {
     raw = await completeRaw(
       AUDIO_RULES,
-      `Write today's ${spec.title} for Tony, ${spec.words}.\n${spec.style}\n${langInstruction(language)}\nOpen with a one-sentence greeting appropriate to a morning briefing, and close with a single calm sign-off sentence.\n\nSOURCES:\n\n${block}`,
+      `Write today's ${spec.title} for Tony, ${spec.words}.\n${spec.style}\n${langInstruction(language)}\nOpen with a one-sentence greeting appropriate to the hour — no name — and close with a single calm sign-off sentence.\n\nSOURCES:\n\n${block}`,
       TOKEN_BUDGET[format],
     );
   } catch (err) {

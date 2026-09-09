@@ -182,3 +182,75 @@ describe("art section only carries art", () => {
     expect(classifyCategory("A quiet week in the trade", artNewspaper)).toBe("art");
   });
 });
+
+describe("art means art, not the art world's politics", () => {
+  const artNewspaper = getSource("theartnewspaper")!;
+  const hyper = getSource("hyperallergic")!;
+
+  // Real headlines that were leading the Art section.
+  it("keeps a museum director's resignation out of Art", () => {
+    expect(
+      classifyCategory(
+        "Lonnie Bunch's Resignation Is a Wake-Up Call. Smithsonian Secretary steps down amid attacks.",
+        hyper,
+      ),
+    ).not.toBe("art");
+    expect(
+      classifyCategory("Smithsonian leader Lonnie G. Bunch to retire", artNewspaper),
+    ).not.toBe("art");
+  });
+
+  it("keeps a funding bill out of Art", () => {
+    expect(
+      classifyCategory(
+        "How Trump's signature bill could make arts education in the US even more expensive",
+        artNewspaper,
+      ),
+    ).not.toBe("art");
+  });
+
+  it("keeps a staff walkout out of Art", () => {
+    expect(
+      classifyCategory("Striking Workers Shutter Three V&A London Locations", hyper),
+    ).not.toBe("art");
+  });
+
+  it("still keeps institutional stories that are ABOUT art", () => {
+    // A resignation is not art; a resignation over a disputed painting is.
+    expect(
+      classifyCategory(
+        "Director resigns after the museum returns a Nazi-looted Old Master painting",
+        artNewspaper,
+      ),
+    ).toBe("art");
+  });
+
+  it("recognises makers and works the old list missed", () => {
+    for (const headline of [
+      "A Painter Once Silenced by East Germany Gets His Due",
+      "New Jersey Black Women Printmakers Shaping the American Narrative",
+      "The Bayeux Tapestry's British Museum Debut Is a Hard-Won Triumph",
+      "Can triennials reduce their environmental impact?",
+    ]) {
+      expect(classifyCategory(headline, rthk), headline).toBe("art");
+    }
+  });
+
+  it("does not take a design publisher off its beat for one work-word", () => {
+    // Real Dezeen headline: a shop interior that happens to contain sculptures.
+    expect(
+      classifyCategory(
+        "I IN clads Human Made store in handcrafted Korean celadon tiles. " +
+          "Tokyo studio I IN combined tiles with playful animal sculptures in a store.",
+        dezeen,
+      ),
+    ).not.toBe("art");
+  });
+
+  it("but a general newsroom still promotes a genuine art story", () => {
+    // RTHK has no competing specialism, so the ordinary vocabulary applies.
+    expect(
+      classifyCategory("Two Renoir paintings worth millions stolen from a museum", rthk),
+    ).toBe("art");
+  });
+});

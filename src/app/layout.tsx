@@ -8,7 +8,7 @@ import { getPreferences } from "@/lib/prefs";
 import { t } from "@/lib/i18n";
 
 export const metadata: Metadata = {
-  title: "Tony Daily",
+  title: "The Daily",
   description: "Tony's personal market + built environment intelligence terminal",
 };
 

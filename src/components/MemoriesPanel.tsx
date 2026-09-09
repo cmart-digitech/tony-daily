@@ -62,8 +62,8 @@ export default function MemoriesPanel({ zh }: { zh: boolean }) {
     <div className="max-w-2xl">
       <p className="mb-4 text-sm text-ink-2">
         {zh
-          ? "呢度嘅內容係你明確要求 Tony Daily 記住嘅偏好，只會影響回答方式，唔會當成事實。"
-          : "These are preferences you have explicitly asked Tony Daily to remember. They shape how the assistant answers — they are never treated as facts about the world."}
+          ? "呢度嘅內容係你明確要求 The Daily 記住嘅偏好，只會影響回答方式，唔會當成事實。"
+          : "These are preferences you have explicitly asked The Daily to remember. They shape how the assistant answers — they are never treated as facts about the world."}
       </p>
       <form onSubmit={add} className="mb-5 flex gap-2">
         <label htmlFor="memory-draft" className="sr-only">

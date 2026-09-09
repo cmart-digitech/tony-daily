@@ -12,7 +12,7 @@ export default async function AudioPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 pb-28 sm:px-6">
       <h1 className="mb-2 border-b-2 border-ink pb-4 font-serif text-3xl text-ink">
-        {zh ? "Tony Daily 音訊" : "Tony Daily Audio"}
+        {zh ? "The Daily 音訊" : "The Daily Audio"}
       </h1>
       <p className="mb-8 max-w-2xl text-sm text-ink-2">
         {zh

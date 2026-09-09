@@ -28,7 +28,7 @@ export default function Header({
           href="/"
           className="shrink-0 font-serif text-xl font-bold tracking-tight text-ink focus-visible:outline-2 focus-visible:outline-accent"
         >
-          TONY<span className="text-accent">·</span>DAILY
+          THE<span className="text-accent">·</span>DAILY
         </Link>
         <nav aria-label="Main" className="hidden flex-1 lg:block">
           <ul className="flex items-center gap-5">

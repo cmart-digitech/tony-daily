@@ -84,7 +84,7 @@ export async function checkAlerts(): Promise<number> {
       .set({ lastTriggeredAt: now })
       .where(eq(schema.stockAlerts.id, alert.id))
       .run();
-    await sendTelegramMessage(`🔔 <b>TONY·DAILY alert</b>\n${message}`);
+    await sendTelegramMessage(`🔔 <b>THE·DAILY alert</b>\n${message}`);
     triggered++;
   }
   return triggered;

@@ -39,7 +39,7 @@ export default async function SettingsPage() {
       </section>
       <section className="mt-14">
         <h2 className="mb-4 border-b border-line pb-2 text-xs font-semibold uppercase tracking-widest text-ink">
-          {lang === "zh" ? "Tony Daily 記住咗啲乜" : "What Tony Daily Remembers"}
+          {lang === "zh" ? "The Daily 記住咗啲乜" : "What The Daily Remembers"}
         </h2>
         <MemoriesPanel zh={lang === "zh"} />
       </section>

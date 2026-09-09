@@ -1,10 +1,20 @@
 /**
  * End-to-end local diagnostic of every subsystem.
- *   node scripts/diagnose.mjs [baseUrl]
+ *   node scripts/diagnose.mjs [baseUrl] [--light]
+ *
  * Reports PASS / FAIL / SKIP (needs credentials) per feature. Read-only
  * except for temporary memory/alert rows, which it cleans up.
+ *
+ * --light skips the two checks that spend AI quota (audio generation and a
+ * chat round trip). Free tiers are small — Gemini allows 20 requests a
+ * minute and Groq 8,000 tokens a minute — so a diagnostic run during active
+ * development can be the thing that exhausts them. Use --light while
+ * working on ingestion, layout, search or market data, and the full run
+ * when the AI path itself is what changed.
  */
-const base = process.argv[2] ?? "http://localhost:3000";
+const args = process.argv.slice(2);
+const LIGHT = args.includes("--light");
+const base = args.find((a) => !a.startsWith("--")) ?? "http://localhost:3000";
 const results = [];
 
 const record = (area, state, detail) => results.push({ area, state, detail });
@@ -72,8 +82,14 @@ if (alertProbe) await json(`/api/alerts?id=${alertProbe.id}`, { method: "DELETE"
 const lib = await json("/api/audio");
 record("Audio library", lib.body?.ok ? "PASS" : "FAIL", `${lib.body?.episodes?.length ?? 0} episodes stored`);
 
-// Audio generation (needs AI)
-const gen = await json("/api/audio", { method: "POST", body: JSON.stringify({ format: "quick", language: "en" }) });
+// Audio generation (needs AI). Skipped in --light so a routine check costs
+// nothing: this is the most token-hungry call in the app, and the answer it
+// gives rarely changes between runs.
+const gen = LIGHT
+  ? { body: null, status: 0 }
+  : await json("/api/audio", { method: "POST", body: JSON.stringify({ format: "quick", language: "en" }) });
+if (LIGHT) record("Audio generation", "SKIP", "--light: not spending AI quota");
+else
 if (gen.body?.ok) {
   const segs = JSON.parse(gen.body.episode.transcript);
   record("Audio generation", "PASS", `${segs.length} segments, ${gen.body.episode.wordCount} words`);
@@ -84,10 +100,17 @@ if (gen.body?.ok) {
   }
 }
 
-// Chat (needs AI)
-const chat = await json("/api/chat", { method: "POST", body: JSON.stringify({ message: "What is important in Hong Kong property today?" }) });
-record("Ask Tony chat", chat.body?.ok ? "PASS" : cfg.aiConfigured ? "FAIL" : "SKIP",
-  chat.body?.ok ? `${chat.body.citations?.length ?? 0} citations` : (chat.body?.error ?? `HTTP ${chat.status}`));
+// Chat (needs AI). One short question in --light is a fair trade: it is the
+// single check that proves retrieval, grounding and citations still work.
+const chat = LIGHT
+  ? null
+  : await json("/api/chat", { method: "POST", body: JSON.stringify({ message: "What is important in Hong Kong property today?" }) });
+if (LIGHT) {
+  record("Ask The Daily chat", "SKIP", "--light: not spending AI quota");
+} else {
+  record("Ask The Daily chat", chat.body?.ok ? "PASS" : cfg.aiConfigured ? "FAIL" : "SKIP",
+    chat.body?.ok ? `${chat.body.citations?.length ?? 0} citations` : (chat.body?.error ?? `HTTP ${chat.status}`));
+}
 
 // Search (FTS)
 const search = await json("/api/search?q=property");
