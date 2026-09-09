@@ -128,7 +128,7 @@ record("Sources", errored.length === 0 ? "PASS" : "FAIL",
 
 // ── report ───────────────────────────────────────────────────────────
 const width = Math.max(...results.map((r) => r.area.length));
-console.log(`\nTONY DAILY — local diagnostic (${base})\n`);
+console.log(`\nTHE DAILY — local diagnostic (${base})\n`);
 for (const r of results) {
   const mark = { PASS: "PASS", FAIL: "FAIL", SKIP: "SKIP", INFO: "    " }[r.state];
   console.log(`  [${mark}] ${r.area.padEnd(width)}  ${r.detail}`);

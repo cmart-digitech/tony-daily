@@ -164,13 +164,61 @@ export function parseScript(raw: string, format: AudioFormat): AudioSegment[] {
       text = tag[2];
     }
     if (!text) continue;
-    segments.push({
-      speaker,
-      lang: lang ?? (/[㐀-鿿]/.test(text) ? "zh-HK" : "en-US"),
-      text,
-    });
+    const segLang = lang ?? (/[㐀-鿿]/.test(text) ? "zh-HK" : "en-US");
+    for (const chunk of splitForDelivery(text)) {
+      segments.push({ speaker, lang: segLang, text: chunk });
+    }
   }
   return dropTruncatedTail(segments);
+}
+
+/**
+ * Break an over-long block into utterance-sized pieces at sentence ends.
+ *
+ * Segments normally follow the script's own paragraphs, but a model
+ * sometimes returns the whole briefing as one unbroken block — one episode
+ * in the library is 275 words in a single segment where its siblings have
+ * seven. Read aloud that becomes one long flat stretch, and the player has
+ * nothing to track progress against or resume from. Splitting on sentence
+ * boundaries restores both without changing a word of the script.
+ */
+const MAX_SEGMENT_CHARS = 320;
+/**
+ * Chinese carries roughly a syllable per character, where English needs
+ * five or six characters for one. Measuring both against 320 would leave a
+ * Cantonese segment several times longer to speak than its English
+ * counterpart, which is the flat-delivery problem this exists to avoid.
+ */
+const MAX_SEGMENT_CHARS_CJK = 120;
+
+function isMostlyCjk(text: string): boolean {
+  const cjk = text.match(/[㐀-鿿]/g)?.length ?? 0;
+  return cjk > text.length / 4;
+}
+
+export function splitForDelivery(text: string, max?: number): string[] {
+  const limit = max ?? (isMostlyCjk(text) ? MAX_SEGMENT_CHARS_CJK : MAX_SEGMENT_CHARS);
+  return splitAtSentences(text, limit);
+}
+
+function splitAtSentences(text: string, max: number): string[] {
+  if (text.length <= max) return [text];
+  // Keep the terminator with its sentence; CJK marks need no trailing space.
+  const sentences = text.match(/[^.!?。！？]+(?:[.!?。！？]+["'」』)\]]*\s*|$)/g);
+  if (!sentences) return [text];
+
+  const out: string[] = [];
+  let current = "";
+  for (const s of sentences) {
+    if (current && (current + s).length > max) {
+      out.push(current.trim());
+      current = s;
+    } else {
+      current += s;
+    }
+  }
+  if (current.trim()) out.push(current.trim());
+  return out.length ? out : [text];
 }
 
 /** A briefing that stops mid-sentence sounds broken read aloud. */

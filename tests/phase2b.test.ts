@@ -13,7 +13,7 @@ delete process.env.TURSO_DATABASE_URL;
 
 const { getDb } = await import("@/lib/db");
 const { evaluateAlert, describeAlert } = await import("@/lib/alerts");
-const { parseScript } = await import("@/lib/ai/audio");
+const { parseScript, splitForDelivery } = await import("@/lib/ai/audio");
 const { chatFtsReady, indexChatMessage, searchConversations, removeConversationFromIndex, backfillChatIndex } =
   await import("@/lib/search/fts");
 const { schema: dbSchema } = await import("@/lib/db");
@@ -176,5 +176,43 @@ describe("preferences: comfort + visit tracking", () => {
     await trackVisit(now + 5 * 60 * 1000); // 5 minutes later
     const prefs = await getPreferences();
     expect(prefs.lastVisitAt).toBe(now); // unchanged
+  });
+});
+
+describe("long blocks are split for delivery", () => {
+  it("leaves a normal paragraph alone", () => {
+    const p = "Good morning. Hong Kong property led the day.";
+    expect(splitForDelivery(p)).toEqual([p]);
+  });
+
+  it("splits an unbroken block at sentence ends", () => {
+    // A model sometimes returns the whole briefing as one paragraph; read
+    // aloud that is one long flat stretch with nothing to resume from.
+    const long = Array.from({ length: 14 }, (_, i) => `This is sentence number ${i}.`).join(" ");
+    const parts = splitForDelivery(long);
+    expect(parts.length).toBeGreaterThan(1);
+    for (const p of parts) expect(p.length).toBeLessThanOrEqual(320);
+    // Nothing is lost and nothing is invented.
+    expect(parts.join(" ").replace(/\s+/g, " ")).toBe(long.replace(/\s+/g, " "));
+  });
+
+  it("never cuts mid-sentence", () => {
+    const long = Array.from({ length: 14 }, (_, i) => `Sentence ${i} runs on for a while.`).join(" ");
+    for (const p of splitForDelivery(long)) expect(p.trim()).toMatch(/[.!?。！？]$/);
+  });
+
+  it("splits Chinese on its own punctuation, and sooner than English", () => {
+    const zh = "樓價上升。恒生指數今日收市報二萬三千點。".repeat(8);
+    const parts = splitForDelivery(zh);
+    expect(parts.length).toBeGreaterThan(1);
+    for (const p of parts) expect(p).toMatch(/。$/);
+    // A syllable per character means the same char count is far more speech,
+    // so Cantonese has to break earlier than English to read as naturally.
+    for (const p of parts) expect(p.length).toBeLessThanOrEqual(120);
+  });
+
+  it("returns the block unchanged when it has no sentence ends to split on", () => {
+    const noStops = "a".repeat(500);
+    expect(splitForDelivery(noStops)).toEqual([noStops]);
   });
 });
