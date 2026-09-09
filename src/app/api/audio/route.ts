@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
-import { generateAudioBrief } from "@/lib/ai/audio";
+import { audioFormatAvailability, generateAudioBrief } from "@/lib/ai/audio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -46,6 +46,23 @@ export async function POST(req: NextRequest) {
       { status: 429 },
     );
   }
+  // Hiding the button is a courtesy; this is the guarantee. A format whose
+  // script the current provider cannot finish is refused outright rather
+  // than half-generated and stored as if it were a whole briefing.
+  const capacity = audioFormatAvailability().find((a) => a.format === body.data.format);
+  if (capacity && !capacity.available) {
+    return NextResponse.json(
+      {
+        ok: false,
+        reason: "insufficient-capacity",
+        error:
+          "That briefing is longer than the AI can complete right now. " +
+          "Shorter formats still work, and this one returns once capacity recovers.",
+      },
+      { status: 503 },
+    );
+  }
+
   const result = await generateAudioBrief(body.data);
   if (!result.brief) {
     // Reason codes are for diagnostics; `error` is what a reader sees.

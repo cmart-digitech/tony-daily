@@ -4,6 +4,7 @@ import { generateDailyBrief, getTodaysBrief, hkDateKey } from "@/lib/brief";
 import { getArticles } from "@/lib/queries";
 import { toContext } from "@/lib/retrieval";
 import { aiModelId, buildSourceBlock, completeRaw, isAiConfigured } from "@/lib/ai";
+import { availableTokenCapacity } from "@/lib/ai/providers";
 
 /**
  * Tony Daily Audio (brief §11–19): news-anchor and podcast-style scripts,
@@ -37,6 +38,43 @@ const TOKEN_BUDGET: Record<AudioFormat, number> = {
   deep: 16000,
   dialogue: 10000,
 };
+
+/**
+ * The share of a format's budget the AI must be able to serve before that
+ * format is offered at all.
+ *
+ * A ten-minute briefing asks for 16,000 tokens. When Gemini is standing down
+ * and Groq is carrying the work, its free tier serves 8,000 a minute — half
+ * of what a Deep Brief needs — and the result stops early. Offering a button
+ * that produces a half-finished briefing is worse than not offering it, so
+ * below this share the format is hidden and the reason is stated.
+ *
+ * Above it, a briefing loses some headroom but still reads as a complete
+ * piece: the budget is deliberately far larger than the visible word count,
+ * and an unfinished trailing sentence is dropped rather than spoken.
+ */
+export const MIN_BUDGET_SHARE = 0.7;
+
+export interface FormatAvailability {
+  format: AudioFormat;
+  /** Offer this format right now? */
+  available: boolean;
+  /** Servable, but with less headroom than usual — expect a shorter piece. */
+  reduced: boolean;
+}
+
+/** What can be generated right now, given the AI capacity actually in hand. */
+export function audioFormatAvailability(): FormatAvailability[] {
+  const capacity = availableTokenCapacity();
+  return (Object.keys(TOKEN_BUDGET) as AudioFormat[]).map((format) => {
+    const need = TOKEN_BUDGET[format];
+    return {
+      format,
+      available: capacity >= need * MIN_BUDGET_SHARE,
+      reduced: capacity < need && capacity >= need * MIN_BUDGET_SHARE,
+    };
+  });
+}
 
 const FORMAT_SPECS: Record<AudioFormat, { words: string; style: string; title: string }> = {
   quick: {

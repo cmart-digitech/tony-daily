@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { play } from "@/lib/voice/player-store";
 import type { TtsSegment } from "@/lib/voice/tts";
+import type { FormatAvailability } from "@/lib/ai/audio";
 
 interface Episode {
   id: number;
@@ -34,7 +35,24 @@ const LANGS = [
  * episode library. Every card shows its generation date — an old episode is
  * clearly an old episode.
  */
-export default function AudioLibrary({ aiConfigured, todayKey }: { aiConfigured: boolean; todayKey: string }) {
+export default function AudioLibrary({
+  aiConfigured,
+  todayKey,
+  availability,
+}: {
+  aiConfigured: boolean;
+  todayKey: string;
+  availability: FormatAvailability[];
+}) {
+  // Only offer what the AI can currently finish. A Deep Brief needs a large
+  // budget; when the provider carrying the work cannot serve enough of it,
+  // the briefing stops early — so the format is withheld and the reason
+  // given, rather than handing over a half-finished episode.
+  const byFormat = new Map(availability.map((a) => [a.format, a]));
+  const offered = (k: string) => byFormat.get(k as FormatAvailability["format"])?.available ?? true;
+  const reduced = (k: string) => byFormat.get(k as FormatAvailability["format"])?.reduced ?? false;
+  const withheld = FORMATS.filter((f) => !offered(f.key));
+
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [language, setLanguage] = useState<(typeof LANGS)[number]["key"]>("en");
   const [generating, setGenerating] = useState<string | null>(null);
@@ -125,7 +143,7 @@ export default function AudioLibrary({ aiConfigured, todayKey }: { aiConfigured:
       </div>
 
       <div className="mb-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {FORMATS.map((f) => (
+        {FORMATS.filter((f) => offered(f.key)).map((f) => (
           <button
             key={f.key}
             type="button"
@@ -136,10 +154,22 @@ export default function AudioLibrary({ aiConfigured, todayKey }: { aiConfigured:
             <span className="block font-serif text-lg text-ink">
               {generating === f.key ? "Generating…" : `▶ ${f.en}`}
             </span>
-            <span className="mt-1 block text-xs text-ink-3">{f.note}</span>
+            <span className="mt-1 block text-xs text-ink-3">
+              {f.note}
+              {reduced(f.key) && " · may run shorter today"}
+            </span>
           </button>
         ))}
       </div>
+      {withheld.length > 0 && (
+        <p className="mb-6 -mt-8 text-xs text-ink-3">
+          {withheld.map((f) => f.en).join(" and ")}{" "}
+          {withheld.length === 1 ? "is" : "are"} unavailable right now: the AI
+          provider currently in rotation cannot serve a script that long
+          without stopping partway. {withheld.length === 1 ? "It returns" : "They return"}{" "}
+          once capacity recovers — usually within a minute or two.
+        </p>
+      )}
       {error && <p className="mb-6 text-sm text-down">{error}</p>}
 
       <h2 className="mb-4 border-b border-line pb-2 text-xs font-semibold uppercase tracking-widest text-ink">

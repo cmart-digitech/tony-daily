@@ -6,7 +6,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { completeRaw } from "@/lib/ai";
 import {
+  availableTokenCapacity,
   markProviderCooling,
+  NO_CEILING,
   providerChain,
   providerCoolingFor,
   resetProviderCooling,
@@ -264,5 +266,68 @@ describe("providers take turns instead of one always going first", () => {
     });
     await completeRaw("system", "user", 16_000);
     expect(requested).toBe(16_000);
+  });
+});
+
+describe("only offer a briefing the AI can finish", () => {
+  beforeEach(() => resetProviderCooling());
+  afterEach(() => resetProviderCooling());
+
+  it("reports the ceiling of the provider actually in rotation", () => {
+    process.env.GEMINI_API_KEY = "g";
+    process.env.GROQ_API_KEY = "q";
+    // Gemini states no per-request ceiling, so capacity is effectively open.
+    expect(availableTokenCapacity()).toBe(NO_CEILING);
+
+    // With Gemini standing down, Groq carries the work — and its free tier
+    // serves 8,000 tokens a minute.
+    markProviderCooling("gemini", 60);
+    expect(availableTokenCapacity()).toBe(7000);
+  });
+
+  it("reports nothing available when every provider is rate-limited", () => {
+    process.env.GEMINI_API_KEY = "g";
+    process.env.GROQ_API_KEY = "q";
+    markProviderCooling("gemini", 60);
+    markProviderCooling("groq", 60);
+    expect(availableTokenCapacity()).toBe(0);
+  });
+
+  it("reports nothing available when no provider is configured", () => {
+    expect(availableTokenCapacity()).toBe(0);
+  });
+
+  it("withholds the Deep Brief when only Groq is carrying the work", async () => {
+    process.env.GEMINI_API_KEY = "g";
+    process.env.GROQ_API_KEY = "q";
+    markProviderCooling("gemini", 60);
+
+    const { audioFormatAvailability } = await import("@/lib/ai/audio");
+    const by = Object.fromEntries(audioFormatAvailability().map((a) => [a.format, a]));
+
+    // Deep needs 16,000 and only 7,000 is servable — 44%, well under the bar.
+    expect(by.deep.available).toBe(false);
+    // Quick needs 6,000 and fits outright.
+    expect(by.quick.available).toBe(true);
+    expect(by.quick.reduced).toBe(false);
+    // Morning needs 10,000; 7,000 is exactly the 70% floor, so it is offered
+    // but flagged as likely to run shorter.
+    expect(by.morning.available).toBe(true);
+    expect(by.morning.reduced).toBe(true);
+  });
+
+  it("offers every format again once capacity recovers", async () => {
+    process.env.GEMINI_API_KEY = "g";
+    process.env.GROQ_API_KEY = "q";
+    const { audioFormatAvailability } = await import("@/lib/ai/audio");
+    expect(audioFormatAvailability().every((a) => a.available)).toBe(true);
+    expect(audioFormatAvailability().every((a) => !a.reduced)).toBe(true);
+  });
+
+  it("withholds everything when nothing can serve a request", async () => {
+    process.env.GEMINI_API_KEY = "g";
+    markProviderCooling("gemini", 60);
+    const { audioFormatAvailability } = await import("@/lib/ai/audio");
+    expect(audioFormatAvailability().some((a) => a.available)).toBe(false);
   });
 });

@@ -219,6 +219,31 @@ export function providerChain(): ProviderId[] {
   );
 }
 
+/**
+ * How large a single request the AI can actually serve right now.
+ *
+ * A ten-minute briefing needs a big budget. Groq's free tier tops out at
+ * 8,000 tokens a minute, so when Gemini is standing down and Groq is
+ * carrying the work, asking for 16,000 produces a briefing that stops
+ * early — worse than not offering it. This reports the ceiling of the best
+ * provider currently in rotation, so the interface can offer only what it
+ * can finish.
+ *
+ * Returns 0 when nothing is available: no key configured, or everything is
+ * rate-limited. A provider with no stated ceiling reports NO_CEILING.
+ */
+export const NO_CEILING = Number.MAX_SAFE_INTEGER;
+
+export function availableTokenCapacity(): number {
+  const chain = providerChain();
+  for (const id of chain) {
+    if (!providerApiKey(id)) continue;
+    if (providerCoolingFor(id) > 0) continue; // rate-limited: not usable now
+    return PROVIDERS[id].maxTokens ?? NO_CEILING;
+  }
+  return 0;
+}
+
 /** Quota and transient failures are worth retrying elsewhere; a bad key is not. */
 export function isFailoverWorthy(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
