@@ -255,14 +255,15 @@ quota the next provider in the chain serves the request instead of the
 feature going dark. Setting `AI_PROVIDER` pins one provider and disables
 failover.
 
-> **Groq reachability.** Groq answers `HTTP 403 "Access denied. Please check
-> your network settings."` from some networks and regions — on both
-> `api.groq.com` and the `console.groq.com` signup pages, so a key cannot
-> even be created there. Verified from this project's network on
-> 14 Aug 2026; OpenRouter, Mistral, xAI and Together were all reachable from
-> the same network at the same moment. Groq support treats this as a
-> per-region/IP block. Where it is reachable it remains an excellent free
-> tier — where it is not, use OpenRouter or Mistral as the second provider.
+> **Groq reachability can come and go.** On 9 Sept 2026 Groq answered
+> `HTTP 403 "Access denied. Please check your network settings."` from this
+> project's network, on both `api.groq.com` and the `console.groq.com`
+> signup pages, while OpenRouter, Mistral, xAI and Together were all
+> reachable at the same moment. The next day the same checks returned 200
+> and 401 — the block had lifted on its own, so treat it as an intermittent
+> per-IP/region block rather than a permanent one. Groq is the configured
+> second provider. If the console will not load for you, retry later or use
+> OpenRouter or Mistral instead.
 
 Set one key and the provider is detected automatically; `AI_PROVIDER` forces a
 choice and `AI_MODEL` overrides the default model. `AI_PROVIDER=custom` with

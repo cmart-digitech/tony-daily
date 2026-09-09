@@ -12,7 +12,7 @@ else says "verify current pricing" rather than guessing.
 | Database | Turso | Free (no card) | 5 GB, 500M row reads/mo — verified 13 Aug 2026 |
 | News ingestion (25 feeds) | Publishers' RSS | Free | Polite cadence, cooldowns |
 | 30-min refresh + Pages | GitHub Actions/Pages | Free (public repo) | Unmetered on public repos |
-| AI (summaries, brief, chat, facts, translation, audio scripts) | Google Gemini | Free tier | Daily request quota — exhausting it degrades honestly to 429 messages; translation moved to once-daily for this reason |
+| AI (summaries, brief, chat, facts, translation, audio scripts) | Google Gemini, then Groq | Free tier (both) | Gemini primary; Groq serves the request when Gemini returns a quota or 5xx error. Translation moved to once-daily to protect the primary quota |
 | Market data (US/FX) | Twelve Data | Free (800 req/day) | Quotes cached 60 s |
 | Speech-to-text (EN + 廣東話) | Browser Web Speech API | Free | Chromium supports yue-Hant-HK |
 | Text-to-speech (briefs, answers) | Browser speechSynthesis | Free | Device voices incl. zh-HK; no audio hosted |
@@ -41,35 +41,30 @@ and disables failover.
 Practical effect: adding a second free key roughly removes daily-quota
 outages.
 
-### Which second provider — Groq is not available on this network
+### Second provider: Groq (configured)
 
-Groq's free tier (verified 13 Aug 2026: 30 req/min, 14,400 req/day, no
-credit card) is far larger than Gemini's and would be the obvious choice.
-**It cannot be used from this network.** Both `api.groq.com` and the
-`console.groq.com` signup pages return `HTTP 403 "Access denied. Please
-check your network settings."`, so no key can be created in the first
-place. Groq support treats this as a regional/IP block rather than an
-account problem.
+Groq's free tier — 30 req/min, 14,400 req/day, no credit card — is far
+larger than Gemini's, which makes it the right fallback. It is configured
+and verified working through the app's own adapter.
 
-Reachability from this project's network, all probed 14 Aug 2026:
+**Its reachability is intermittent, and that is worth recording.** On
+9 Sept 2026 both `api.groq.com` and the `console.groq.com` signup pages
+returned `HTTP 403 "Access denied. Please check your network settings."`
+from this project's network, while OpenRouter, Mistral, xAI and Together
+were all reachable at the same moment. The next day the same two checks
+returned 200 and 401 — the block had cleared without any action. Treat it
+as a transient per-IP/region block, not a permanent exclusion. If the
+console will not load, retry later; OpenRouter (free models, no card,
+~50 req/day) and Mistral are the alternatives.
 
-| Provider | Result | Verdict |
-|---|---|---|
-| OpenRouter | HTTP 200 | Reachable — **recommended second provider** |
-| Mistral | HTTP 401 (no key sent) | Reachable |
-| Together AI | HTTP 401 (no key sent) | Reachable |
-| xAI | HTTP 401 (no key sent) | Reachable, but paid |
-| Groq | HTTP 403 access denied | **Blocked, API and console** |
-
-OpenRouter is therefore the second provider to configure: free models, no
-credit card, ~50 requests/day. That daily cap is far smaller than Groq's,
-so it is a safety net for a Gemini outage rather than a co-primary — but a
-free tier that answers beats a larger one that refuses the connection.
-
-Note the production app runs on Vercel in Tokyo, not on this network, so
-Groq's API might well be reachable from the deployed functions. It stays
-unusable regardless, because the key has to be created through the blocked
-console first.
+**The default model needed updating.** `llama-3.3-70b-versatile`, the
+model this project had configured, now 404s as retired. Checking the live
+model list on 10 Sept 2026 and comparing the general-purpose candidates on
+a Traditional Chinese task — the thing this provider is a fallback *for* —
+`openai/gpt-oss-120b` and `qwen/qwen3.8-27b` both rendered "Northern
+Metropolis" correctly as 北部都會區, while `openai/gpt-oss-20b` produced
+北方都市. The 120b is now the default. Provider default models are worth
+re-checking periodically; vendors retire them without notice.
 
 ## Paid options awaiting Tony's decision
 

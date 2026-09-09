@@ -56,7 +56,14 @@ export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
     id: "groq",
     label: "Groq",
     baseUrl: "https://api.groq.com/openai/v1",
-    defaultModel: "llama-3.3-70b-versatile",
+    // llama-3.3-70b-versatile was retired and now 404s. Checked the live
+    // model list on 10 Sept 2026 and compared the general-purpose
+    // candidates on a Traditional Chinese task, because this provider is
+    // the fallback for zh-HK work: gpt-oss-120b and qwen3.8-27b both
+    // rendered "Northern Metropolis" correctly as 北部都會區, while
+    // gpt-oss-20b produced 北方都市. The 120b is the larger model and used
+    // natural HK phrasing, so it takes the default.
+    defaultModel: "openai/gpt-oss-120b",
     keyVars: ["GROQ_API_KEY", "AI_API_KEY"],
     console: "https://console.groq.com/keys",
     freeTier: "Free tier, no credit card (30 req/min)",
