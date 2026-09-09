@@ -70,7 +70,28 @@ ABSOLUTE RULES:
 - Preserve names, numbers, percentages and stock codes exactly.
 - No greetings to an audience ("everyone", "folks") — this briefing is for one listener, Tony.
 - Plain spoken prose. No Markdown, no headings, no citation markers like [1] — this will be read aloud.
-- Do not read article headlines verbatim as a list; synthesise them into natural speech.`;
+- Do not read article headlines verbatim as a list; synthesise them into natural speech.
+
+WRITE FOR THE EAR. A speech engine reads this, and it can only sound human if
+the writing is how a person actually talks:
+- Short sentences, one idea each. Long clause-stacked sentences come out flat
+  and mechanical no matter how good the voice is.
+- Use contractions the way people speak: "it's", "there's", "they've".
+- Vary how sentences open. Three in a row starting the same way sounds like a
+  machine reading a table.
+- Punctuate for breath. Commas and full stops are the only pauses the voice
+  has, so a sentence without them is delivered in one flat rush.
+- Write figures as they are said, never as symbols: "three and a half percent",
+  not "3.5%"; "eighty-one point two million Hong Kong dollars", not "HK$81.2m".
+  The value stays exactly as the source has it — only the spelling changes.
+- Digits that are part of a NAME stay as digits: "S&P 500", "Hang Seng Index",
+  "Nasdaq 100", "Lee Garden Eight". Spell out quantities, never names --
+  "the S&P 500 fell twenty-one points", never "the S&P five thousand".
+- Spell out abbreviations: "versus" not "vs", "third quarter" not "Q3", "year
+  on year" not "YoY", "roughly" not "approx.".
+- Say a company's name, not its ticker: "Tencent", not "0700.HK".
+- Hand the listener from one topic to the next in words ("over in property",
+  "meanwhile") rather than leaving a bare jump.`;
 
 function langInstruction(language: AudioLanguage): string {
   if (language === "zh-HK") {
