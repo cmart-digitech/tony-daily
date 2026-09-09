@@ -9,7 +9,7 @@ negotiable.
 
 ## Get it running
 
-You need Node 22 or newer.
+You need Node 24 or newer — the version CI verifies against.
 
 ```bash
 git clone https://github.com/cmart-digitech/tony-daily.git
