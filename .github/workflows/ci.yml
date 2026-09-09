@@ -1,0 +1,58 @@
+name: CI
+
+# Enforces the rule in CLAUDE.md: lint, typecheck, tests and build must all
+# pass before work is considered done. Running it here makes that automatic
+# for every contributor instead of depending on someone remembering.
+#
+# Deliberately runs with NO secrets. A clean checkout is what a new
+# contributor actually has, and the app is designed to build without keys —
+# AI and market data degrade to honest "not configured" states rather than
+# failing. If CI ever needs a secret to go green, that is a bug in the
+# graceful-degradation path, not a reason to add the secret here.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      # A local SQLite path so the build has somewhere to point. No hosted
+      # database, no credentials — the dual-driver layer falls back to the
+      # file driver when TURSO_DATABASE_URL is absent.
+      DATABASE_URL: ./data/ci.db
+      APP_TIMEZONE: Asia/Hong_Kong
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

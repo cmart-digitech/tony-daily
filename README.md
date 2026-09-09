@@ -14,6 +14,11 @@ original; every AI answer is grounded in retrieved sources with citations;
 market data is always labelled with its timestamp and entitlement. When data
 is unavailable the app says so — it never invents content.
 
+**Contributing?** Start with [CONTRIBUTING.md](CONTRIBUTING.md) for setup,
+the branch/PR workflow and the rules a change has to keep. `main` is the
+deployed branch — work happens on a branch and lands through a pull request,
+with CI running lint, typecheck, tests and build on every push.
+
 ## Architecture
 
 ```
