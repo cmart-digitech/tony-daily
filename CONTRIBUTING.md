@@ -70,12 +70,17 @@ npm run lint && npm run typecheck && npm test && npm run build
 git push -u origin your-change
 ```
 
-Then open a PR against `main`. CI runs the four gates on every push, and
-Vercel posts a preview URL on the PR so reviewers can click through the
-change running for real.
+Then open a PR against `main`. CI runs the four gates on every push and
+reports back on the PR.
 
 **All four gates must pass before a PR is ready.** Fix failures rather than
 documenting them.
+
+Review your change by **running it locally** (`npm run dev`). Vercel does
+build a preview for every branch, but those URLs sit behind Vercel's own
+SSO — only accounts with access to the Vercel project can open them, which
+is not the same list as this repository's collaborators. Do not rely on a
+preview link being clickable for reviewers.
 
 ## Things that will get a PR sent back
 

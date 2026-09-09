@@ -1,0 +1,7 @@
+# Every pull request automatically requests a review from the repository
+# owner. Contributors push branches freely; what lands on main gets reviewed.
+#
+# Enforced only when branch protection has "Require review from Code Owners"
+# enabled (Settings -> Branches).
+
+*       @cmart-digitech
