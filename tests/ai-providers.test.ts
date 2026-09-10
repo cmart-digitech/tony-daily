@@ -233,3 +233,34 @@ describe("provider catalogue", () => {
     }
   });
 });
+
+describe("a retired model must not stop the chain", () => {
+  it("treats an unknown model as worth trying the next provider", () => {
+    // Both of these actually happened during this project: Groq retired
+    // llama-3.3-70b-versatile, OpenRouter dropped gemini-2.0-flash-exp:free.
+    expect(
+      isFailoverWorthy(
+        new Error("AI provider error (HTTP 404): The model `llama-3.3-70b-versatile` does not exist."),
+      ),
+    ).toBe(true);
+    expect(
+      isFailoverWorthy(new Error("AI provider error (HTTP 400): model not found")),
+    ).toBe(true);
+    expect(
+      isFailoverWorthy(new Error("AI provider error (HTTP 404): this model is no longer available")),
+    ).toBe(true);
+  });
+
+  it("still refuses to retry a genuinely bad request elsewhere", () => {
+    expect(
+      isFailoverWorthy(new Error("AI provider error (HTTP 400): messages must not be empty")),
+    ).toBe(false);
+  });
+
+  it("keeps every preset pointing at a model name, not an empty string", () => {
+    for (const [id, p] of Object.entries(PROVIDERS)) {
+      if (id === "custom") continue;
+      expect(p.defaultModel, `${id} has no default model`).toMatch(/\S/);
+    }
+  });
+});
