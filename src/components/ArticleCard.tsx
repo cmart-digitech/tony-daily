@@ -4,6 +4,22 @@ import { getSource } from "@/lib/sources/registry";
 import { timeAgo } from "@/lib/format";
 import { type UiLanguage } from "@/lib/i18n";
 import ArticlePlaceholder from "./ArticlePlaceholder";
+
+/**
+ * Marks a card whose story is a video, so a reader can tell before clicking.
+ * Deliberately quiet: video is an attribute, not a promotion, and this must
+ * not read as a badge that makes video look more important than text.
+ * No runtime is shown because the feed does not carry one
+ * (docs/VIDEO_POLICY.md).
+ */
+function VideoMark() {
+  return (
+    <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-sm bg-black/60 px-2 py-1 text-[10px] uppercase tracking-widest text-white">
+      <span aria-hidden>▶</span>
+      Video
+    </span>
+  );
+}
 import VerificationBadge from "./VerificationBadge";
 
 export type CardVariant = "hero" | "visual" | "standard" | "compact";
@@ -60,6 +76,7 @@ export default function ArticleCard({
                   {article.imageAttribution}
                 </figcaption>
               )}
+              {article.videoId && <VideoMark />}
             </figure>
           ) : (
             <ArticlePlaceholder
@@ -104,6 +121,7 @@ export default function ArticleCard({
                 loading="lazy"
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
               />
+              {article.videoId && <VideoMark />}
             </figure>
           ) : (
             <ArticlePlaceholder
