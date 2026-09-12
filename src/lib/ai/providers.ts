@@ -94,10 +94,18 @@ export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
     id: "openrouter",
     label: "OpenRouter",
     baseUrl: "https://openrouter.ai/api/v1",
-    defaultModel: "google/gemini-2.0-flash-exp:free",
+    // gemini-2.0-flash-exp:free was retired and is no longer listed, so this
+    // preset would have 404'd the moment anyone configured a key. Checked
+    // the live catalogue on 10 Sept 2026 and took the strongest
+    // instruction-tuned free model from the Gemini family's lineage, since
+    // this provider is a fallback for Traditional Chinese work. Not yet
+    // quality-tested against zh-HK -- there is no key configured to test with.
+    defaultModel: "google/gemma-4-31b-it:free",
     keyVars: ["OPENROUTER_API_KEY", "AI_API_KEY"],
     console: "https://openrouter.ai/keys",
-    freeTier: "Free models available (low daily cap)",
+    // Verified 10 Sept 2026: 20 req/min, and 50 requests a day until $10 of
+    // credit has ever been purchased, after which it is 1,000 a day.
+    freeTier: "Free models, no card (50 req/day)",
   },
   mistral: {
     id: "mistral",
@@ -248,6 +256,16 @@ export function availableTokenCapacity(): number {
 export function isFailoverWorthy(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   if (/rejected the API key/i.test(message)) return false;
+  // A retired model is this provider's problem, not the request's. Vendors
+  // drop models without notice -- Groq's llama-3.3-70b-versatile and
+  // OpenRouter's gemini-2.0-flash-exp both went away during this project --
+  // and a stale name in one preset must not stop the chain reaching a
+  // provider that would have answered.
+  // The window has to clear a quoted model name, which can be long:
+  // "The model `llama-3.3-70b-versatile` does not exist."
+  if (/model.{0,60}?(not found|does not exist|no longer|decommission|deprecat)/i.test(message)) {
+    return true;
+  }
   return /quota|rate limit|HTTP 5\d\d|could not be reached|unreachable|network|timed? ?out|empty response/i.test(
     message,
   );
