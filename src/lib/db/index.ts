@@ -120,6 +120,8 @@ export async function runBatch(
  */
 const ADDITIVE_MIGRATIONS = [
   "ALTER TABLE articles ADD COLUMN translated_title TEXT",
+  "ALTER TABLE articles ADD COLUMN video_id TEXT",
+  "ALTER TABLE articles ADD COLUMN video_provider TEXT",
   "ALTER TABLE chat_conversations ADD COLUMN updated_at INTEGER",
   "ALTER TABLE chat_conversations ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE chat_conversations ADD COLUMN archived INTEGER NOT NULL DEFAULT 0",
@@ -172,7 +174,9 @@ const MIGRATION_SQL = `
       category TEXT NOT NULL DEFAULT 'general',
       region TEXT NOT NULL DEFAULT 'global',
       cluster_id INTEGER,
-      score REAL NOT NULL DEFAULT 0
+      score REAL NOT NULL DEFAULT 0,
+      video_id TEXT,
+      video_provider TEXT
     );
     CREATE UNIQUE INDEX IF NOT EXISTS articles_url_unique ON articles (canonical_url);
     CREATE UNIQUE INDEX IF NOT EXISTS articles_hash_unique ON articles (content_hash);

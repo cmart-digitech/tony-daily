@@ -55,6 +55,20 @@ export async function articlesByCategory(
   ).slice(0, limit);
 }
 
+/**
+ * Stories that carry a video, newest first.
+ *
+ * Video is an attribute rather than a category, so this filters on the
+ * attribute and leaves categorisation alone: the same item can be Hong Kong
+ * news AND a video. Cluster de-duplication still applies, so a video and a
+ * written report of one event resolve to a single story.
+ */
+export async function articlesWithVideo(limit = 30): Promise<ArticleRow[]> {
+  return dedupeByCluster(
+    (await recentArticles(600)).filter((a) => Boolean(a.videoId)),
+  ).slice(0, limit);
+}
+
 export async function getArticle(id: number): Promise<ArticleRow | undefined> {
   const db = await getDb();
   return db.select().from(schema.articles).where(eq(schema.articles.id, id)).get();

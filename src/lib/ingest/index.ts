@@ -60,6 +60,12 @@ type FeedItem = {
   enclosure?: { url?: string; type?: string };
   mediaContent?: { $?: { url?: string; medium?: string } }[];
   mediaThumbnail?: { $?: { url?: string } };
+  /** YouTube Atom entries: the video id, and a nested media:group. */
+  videoId?: string;
+  mediaGroup?: {
+    "media:thumbnail"?: { $?: { url?: string } }[];
+    "media:description"?: string | string[];
+  };
 };
 
 const parser = new Parser<Record<string, unknown>, FeedItem>({
@@ -69,6 +75,10 @@ const parser = new Parser<Record<string, unknown>, FeedItem>({
     item: [
       ["media:content", "mediaContent", { keepArray: true }],
       ["media:thumbnail", "mediaThumbnail"],
+      // YouTube channel feeds are Atom: the id sits in yt:videoId and the
+      // thumbnail inside a nested media:group, not at item level.
+      ["yt:videoId", "videoId"],
+      ["media:group", "mediaGroup"],
     ],
   },
 });
@@ -88,6 +98,45 @@ function pickImage(item: FeedItem): string | null {
   }
   const m = item.content?.match(/<img[^>]+src=["']([^"']+)["']/i);
   return m ? m[1] : null;
+}
+
+/**
+ * YouTube entries carry their thumbnail and description inside a nested
+ * media:group rather than at item level. We take the id, the thumbnail and
+ * a cleaned description -- and nothing else. No file, no stream: the video
+ * is played through the publisher's own embed (docs/VIDEO_POLICY.md).
+ */
+function youtubeParts(item: FeedItem): {
+  videoId: string | null;
+  thumbnail: string | null;
+  description: string;
+} {
+  const videoId = item.videoId?.trim() || null;
+  const thumbnail = item.mediaGroup?.["media:thumbnail"]?.[0]?.$?.url ?? null;
+  const rawDesc = item.mediaGroup?.["media:description"];
+  const desc = Array.isArray(rawDesc) ? rawDesc[0] ?? "" : rawDesc ?? "";
+  return { videoId, thumbnail, description: cleanVideoDescription(desc) };
+}
+
+/**
+ * A channel's description is promotional copy with a boilerplate footer --
+ * a rule of dashes, then "follow us" links. Keep the part that describes
+ * the story and drop the marketing, so search indexes something useful.
+ */
+export function cleanVideoDescription(raw: string): string {
+  const boilerplate = new RegExp(
+    [
+      String.raw`\n?-{6,}\n?`, // the rule of dashes channels use as a divider
+      String.raw`\n(?=https?://)`, // a bare link starting its own line
+      String.raw`\n(?=(?:Facebook|Instagram|Twitter|X|YouTube|網頁|訂閱)\s*[:：])`,
+    ].join("|"),
+  );
+  const cut = raw.split(boilerplate)[0] ?? "";
+  return cut
+    .replace(/#\S+/g, "") // trailing hashtag block
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .slice(0, 500);
 }
 
 async function fetchWithRetry(source: SourceConfig, attempts = 2) {
@@ -122,6 +171,8 @@ interface NormalisedItem {
   category: string;
   region: string;
   entities: ReturnType<typeof extractEntities>;
+  videoId: string | null;
+  videoProvider: string | null;
 }
 
 /**
@@ -146,7 +197,12 @@ async function ingestSource(source: SourceConfig): Promise<IngestResult> {
       if (seenInFeed.has(canonical)) continue;
       seenInFeed.add(canonical);
       const title = stripHtml(rawTitle);
-      const excerpt = stripHtml(item.contentSnippet ?? item.content ?? "").slice(0, 500);
+      const video = source.type === "youtube" ? youtubeParts(item) : null;
+      // A video with no id is not embeddable, so it is not usable.
+      if (source.type === "youtube" && !video?.videoId) continue;
+      const excerpt =
+        video?.description ||
+        stripHtml(item.contentSnippet ?? item.content ?? "").slice(0, 500);
       const classifiable = `${title} ${excerpt}`;
       const publishedRaw = item.isoDate ?? item.pubDate;
       normalised.push({
@@ -155,11 +211,13 @@ async function ingestSource(source: SourceConfig): Promise<IngestResult> {
         hash: contentHash([source.id, title, canonical]),
         excerpt,
         publishedAt: publishedRaw ? Date.parse(publishedRaw) || null : null,
-        imageUrl: pickImage(item),
+        imageUrl: video?.thumbnail ?? pickImage(item),
         author: item.creator ?? null,
         category: classifyCategory(classifiable, source),
         region: classifyRegion(classifiable, source),
         entities: extractEntities(classifiable),
+        videoId: video?.videoId ?? null,
+        videoProvider: video?.videoId ? "youtube" : null,
       });
     }
 
@@ -211,6 +269,8 @@ async function ingestSource(source: SourceConfig): Promise<IngestResult> {
               verificationStatus: source.primary ? "PRIMARY_VERIFIED" : "SINGLE_SOURCE",
               category: n.category,
               region: n.region,
+              videoId: n.videoId,
+              videoProvider: n.videoProvider,
             })),
           )
           .run();
