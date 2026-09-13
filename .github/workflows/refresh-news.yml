@@ -26,9 +26,20 @@ name: Refresh news
 
 on:
   schedule:
-    # Every 30 minutes during Hong Kong waking hours (22:00–14:00 UTC
+    # Twice an hour during Hong Kong waking hours (22:00–14:00 UTC
     # ≈ 06:00–22:00 HKT), so we are not hammering feeds overnight.
-    - cron: "*/30 22-23,0-14 * * *"
+    #
+    # At :07 and :37, deliberately NOT :00 and :30. GitHub delays scheduled
+    # runs at high-load times, which "include the start of every hour", and
+    # says queued runs "may be dropped" -- its own advice is to schedule at a
+    # different time of the hour. The previous "*/30" fired on exactly those
+    # congested minutes and was measured running a median 292 minutes apart
+    # across 363 runs, against the 30 intended.
+    #
+    # This is no longer the only thing keeping news fresh: the dashboard
+    # refreshes itself in the background when a visitor finds it stale
+    # (src/lib/ingest/freshness.ts). A late run here now costs nothing.
+    - cron: "7,37 22-23,0-14 * * *"
   workflow_dispatch: # allows a manual run from the Actions tab
 
 jobs:

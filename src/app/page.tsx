@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import ArticleCard from "@/components/ArticleCard";
 import FormattedText from "@/components/FormattedText";
@@ -13,11 +14,20 @@ import { greetingFor } from "@/lib/greeting";
 import { t } from "@/lib/i18n";
 import { imageFirst } from "@/lib/layout";
 import { lastRefreshedAt } from "@/lib/ingest";
+import { refreshIfStale } from "@/lib/ingest/freshness";
 import { getArticles, topStories, watchlist, watchlistNews } from "@/lib/queries";
 import { getPreferences, trackVisit } from "@/lib/prefs";
 import type { ArticleRow } from "@/lib/retrieval";
 
 export const dynamic = "force-dynamic";
+/**
+ * Room for a background refresh to finish after the page has been sent. The
+ * reader never waits on it -- after() runs once the response is out -- but
+ * the function has to stay alive long enough to fetch the publishers. A
+ * full refresh measures ~18s; this leaves headroom without holding a
+ * function open indefinitely.
+ */
+export const maxDuration = 60;
 
 const SECTION_LABELS: Record<string, Parameters<typeof t>[1]> = {
   watchlist: "yourWatchlist",
@@ -55,6 +65,12 @@ export default async function TodayPage() {
     topStories(40),
     watchlistNews(20),
   ]);
+
+  // Stale news refreshes itself on visit, in the background, so freshness no
+  // longer hangs on a scheduler that GitHub delays at exactly the minutes we
+  // had chosen. This render uses what is already held; the next one gets
+  // the new stories. See src/lib/ingest/freshness.ts.
+  after(() => refreshIfStale(refreshedAt) ?? undefined);
 
   // SINCE YOUR LAST VISIT (brief §54): what the ranking already considers
   // important, filtered to items indexed after the previous visit.
