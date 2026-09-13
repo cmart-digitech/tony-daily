@@ -82,6 +82,15 @@ SSO — only accounts with access to the Vercel project can open them, which
 is not the same list as this repository's collaborators. Do not rely on a
 preview link being clickable for reviewers.
 
+Previews run against their own database (`tony-daily-preview` on Turso),
+never production: `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` are scoped
+per environment in Vercel. A preview therefore starts empty and fills itself
+on first visit. Keep it that way — a preview sharing the production database
+would run your branch's migrations and ingest against Tony's live data,
+including the saved articles that cannot be recovered. Environment variables
+apply to new deployments only, so a preview built before a variable changed
+keeps the old value until it is rebuilt.
+
 ## Things that will get a PR sent back
 
 These come from [CLAUDE.md](CLAUDE.md) and matter more than style:
