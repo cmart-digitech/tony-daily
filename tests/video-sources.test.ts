@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { cleanVideoDescription } from "@/lib/ingest";
-import { SOURCES } from "@/lib/sources/registry";
+import {
+  VIDEO_MAX_AGE_MS,
+  classifiableText,
+  cleanVideoDescription,
+  isTooOldForVideo,
+} from "@/lib/ingest";
+import { classifyCategory } from "@/lib/ingest/classify";
+import { SOURCES, getSource } from "@/lib/sources/registry";
 
 const videoSources = SOURCES.filter((s) => s.type === "youtube");
 
@@ -29,9 +35,36 @@ describe("video source registry", () => {
 
   it("keeps video authority in line with the same publisher's text feed", () => {
     // Video must compete on the same terms, never promoted for being video.
-    const rthkText = SOURCES.find((s) => s.id === "rthk-en-local")!;
-    const rthkVideo = SOURCES.find((s) => s.id === "yt-rthk")!;
-    expect(rthkVideo.authority).toBe(rthkText.authority);
+    // The audit found SCMP video at 85 against SCMP text at 82.
+    const pairs: [video: string, text: string][] = [
+      ["yt-rthk", "rthk-en-local"],
+      ["yt-scmp", "scmp-hk"],
+      ["yt-bbc-news", "bbc-business"],
+      ["yt-dezeen", "dezeen"],
+      ["yt-archdaily", "archdaily"],
+    ];
+    for (const [video, text] of pairs) {
+      const v = SOURCES.find((s) => s.id === video)!;
+      const t = SOURCES.find((s) => s.id === text)!;
+      expect(v.authority, `${video} vs ${text}`).toBe(t.authority);
+    }
+  });
+
+  it("never lets a video channel outrank the broadcasters' own text feeds", () => {
+    const topMediaText = Math.max(
+      ...SOURCES.filter((s) => s.type === "rss" && !s.primary).map((s) => s.authority),
+    );
+    for (const s of videoSources) {
+      expect(s.authority, s.id).toBeLessThanOrEqual(topMediaText);
+    }
+  });
+
+  it("no longer carries the two channels the audit found were the wrong ones", () => {
+    // UCnwaU7j34C92ywMHXJahHRA is NOW (@NOWTV), a UK entertainment service;
+    // UCezZxnyyvF9Yv3qqfM1Gn7A is @SCMPtv, unrelated and silent since 2017.
+    const feeds = videoSources.map((s) => s.feedUrl).join(" ");
+    expect(feeds).not.toContain("UCnwaU7j34C92ywMHXJahHRA");
+    expect(feeds).not.toContain("UCezZxnyyvF9Yv3qqfM1Gn7A");
   });
 
   it("records the channel known to block off-site playback", () => {
@@ -90,5 +123,53 @@ describe("cleanVideoDescription", () => {
 
   it("caps a very long description", () => {
     expect(cleanVideoDescription("x".repeat(900)).length).toBeLessThanOrEqual(500);
+  });
+});
+
+describe("isTooOldForVideo", () => {
+  const now = 1_800_000_000_000;
+
+  it("keeps a video from this week", () => {
+    expect(isTooOldForVideo(now - 2 * 24 * 60 * 60 * 1000, now)).toBe(false);
+  });
+
+  it("drops a clip older than the limit", () => {
+    // A quiet channel's feed still lists its last 15 uploads, however old.
+    expect(isTooOldForVideo(now - VIDEO_MAX_AGE_MS - 1, now)).toBe(true);
+  });
+
+  it("drops a video that carries no date", () => {
+    expect(isTooOldForVideo(null, now)).toBe(true);
+  });
+});
+
+describe("classifiableText", () => {
+  const video = getSource("yt-reuters")!;
+  const article = getSource("rthk-en-local")!;
+
+  it("classifies video by its title alone", () => {
+    expect(classifiableText("Fashion week opens", "Subscribe for more", video)).toBe(
+      "Fashion week opens",
+    );
+  });
+
+  it("still classifies articles by title and excerpt", () => {
+    expect(classifiableText("Council meets", "on the housing plan", article)).toBe(
+      "Council meets on the housing plan",
+    );
+  });
+
+  it("keeps promotional description copy from moving a video onto a beat", () => {
+    // Modelled on the 15 Sept audit, where this Reuters clip was filed
+    // under Infrastructure because of words in its channel description.
+    const title = "Christian Siriano creates romantic fantasy at NYFW";
+    const description =
+      "Designer Christian Siriano unveiled his collection. Reuters construction bridge infrastructure coverage";
+    // The description alone would drag it there...
+    expect(classifyCategory(`${title} ${description}`, video)).toBe("infrastructure");
+    // ...and classifying by title keeps it off the beat.
+    expect(classifyCategory(classifiableText(title, description, video), video)).not.toBe(
+      "infrastructure",
+    );
   });
 });

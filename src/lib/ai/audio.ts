@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { generateDailyBrief, getTodaysBrief, hkDateKey } from "@/lib/brief";
 import { getArticles } from "@/lib/queries";
-import { toContext } from "@/lib/retrieval";
+import { isGroundable, toContext } from "@/lib/retrieval";
 import { aiModelId, buildSourceBlock, completeRaw, isAiConfigured } from "@/lib/ai";
 import { availableTokenCapacity } from "@/lib/ai/providers";
 
@@ -284,7 +284,8 @@ export async function generateAudioBrief(options: {
 
   // Grounding material: today's brief articles only.
   let daily = await getTodaysBrief();
-  if (!daily) {
+  // An empty cached brief is rebuilt, exactly as the Today page does.
+  if (!daily || daily.content.sections.length === 0) {
     try {
       await generateDailyBrief();
       daily = await getTodaysBrief();
@@ -292,10 +293,13 @@ export async function generateAudioBrief(options: {
       daily = null;
     }
   }
-  const sourceIds = daily?.content.sections.flatMap((s) => s.articleIds) ?? [];
+  const briefIds = daily?.content.sections.flatMap((s) => s.articleIds) ?? [];
+  // Video is never evidence, so it is neither read from nor recorded as an
+  // episode's source: the stored ids are exactly what the script drew on.
+  const articles = (await getArticles(briefIds)).filter(isGroundable);
+  const sourceIds = articles.map((a) => a.id);
   if (sourceIds.length === 0) return { brief: null, reason: "no-verified-stories" };
 
-  const articles = await getArticles(sourceIds);
   const { block } = buildSourceBlock(articles.map(toContext));
   const spec = FORMAT_SPECS[format];
 

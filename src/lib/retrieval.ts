@@ -21,6 +21,25 @@ export function toContext(a: ArticleRow): ArticleForContext {
 }
 
 /**
+ * Whether a story may be given to the AI as evidence.
+ *
+ * Video may not: "a video we cannot read is not evidence" (docs/
+ * VIDEO_POLICY.md). All we hold for one is a title and the channel's
+ * promotional description, and an answer citing that would present
+ * marketing copy as reporting. Video stays visible everywhere a reader
+ * browses -- sections, search, the Video page -- it just never grounds a
+ * claim.
+ */
+export function isGroundable(a: Pick<ArticleRow, "videoId">): boolean {
+  return !a.videoId;
+}
+
+/** The stories the AI may cite, in the order given. */
+export function groundingContext(rows: ArticleRow[]): ArticleForContext[] {
+  return rows.filter(isGroundable).map(toContext);
+}
+
+/**
  * Lexical retrieval over recent indexed articles: token overlap between the
  * query and title+excerpt+entities, with a mild recency boost. Returns the
  * strongest matches — or, for broad queries, the top-ranked recent stories.
@@ -102,6 +121,40 @@ export function dedupeByCluster(rows: ArticleRow[]): ArticleRow[] {
       if (seen.has(a.clusterId)) continue;
       seen.add(a.clusterId);
     }
+    out.push(a);
+  }
+  return out;
+}
+
+/**
+ * One representative per story cluster, preferring written reporting.
+ *
+ * `dedupeByCluster` keeps the best-scored row, which can be a video. Where
+ * the representative feeds the AI -- the Daily Brief's sections become its
+ * overview and audio sources -- that hides the cluster's written reporting
+ * behind a clip the AI may not use, and with the brief's video cap the
+ * whole story could drop out. Here a cluster is represented by its
+ * best-scored written article, and by a video only when it has no written
+ * one. Output stays in the input's (score) order.
+ */
+export function dedupeByClusterPreferWritten(rows: ArticleRow[]): ArticleRow[] {
+  const bestWritten = new Map<number, number>();
+  for (const a of rows) {
+    if (a.clusterId != null && isGroundable(a) && !bestWritten.has(a.clusterId)) {
+      bestWritten.set(a.clusterId, a.id);
+    }
+  }
+  const seen = new Set<number>();
+  const out: ArticleRow[] = [];
+  for (const a of rows) {
+    if (a.clusterId == null) {
+      out.push(a);
+      continue;
+    }
+    if (seen.has(a.clusterId)) continue;
+    const written = bestWritten.get(a.clusterId);
+    if (written != null && written !== a.id) continue;
+    seen.add(a.clusterId);
     out.push(a);
   }
   return out;

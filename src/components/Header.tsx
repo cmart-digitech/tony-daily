@@ -31,13 +31,20 @@ export default function Header({
         >
           THE<span className="text-accent">·</span>DAILY
         </Link>
-        <nav aria-label="Main" className="hidden flex-1 lg:block">
-          <ul className="flex items-center gap-5">
+        {/* Ten items need the full max-w-7xl row. Adding VIDEO took them to
+            759px against ~700px available and wrapped "Ask The Daily" onto
+            three lines; the tighter gap and narrower search box (SearchBox,
+            xl:w-36) and tracking-wide make room at 1280px and up (xl), with
+            margin left for a 17px Windows scrollbar; nowrap stops a label
+            breaking mid-phrase.
+            Below xl there is no room at all, so the scrolling row is used. */}
+        <nav aria-label="Main" className="hidden flex-1 xl:block">
+          <ul className="flex items-center gap-3">
             {nav.map((n) => (
               <li key={n.href}>
                 <Link
                   href={n.href}
-                  className="text-[13px] uppercase tracking-wider text-ink-2 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+                  className="whitespace-nowrap text-[13px] uppercase tracking-wide text-ink-2 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   {n.label}
                 </Link>
@@ -46,7 +53,7 @@ export default function Header({
             <li>
               <Link
                 href="/chat"
-                className="text-[13px] uppercase tracking-wider text-accent transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-accent"
+                className="whitespace-nowrap text-[13px] uppercase tracking-wide text-accent transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-accent"
               >
                 {t(lang, "askTonyDaily")}
               </Link>
@@ -67,8 +74,8 @@ export default function Header({
           </Link>
         </div>
       </div>
-      {/* Compact nav for tablet/mobile */}
-      <nav aria-label="Main mobile" className="lg:hidden">
+      {/* Compact nav for mobile, tablet and smaller laptops */}
+      <nav aria-label="Main mobile" className="xl:hidden">
         <ul className="flex items-center gap-5 overflow-x-auto border-t border-line px-4 py-2 sm:px-6">
           {[...nav, { href: "/chat", label: t(lang, "askTonyDaily") }].map((n) => (
             <li key={n.href} className="shrink-0">

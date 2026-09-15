@@ -48,7 +48,12 @@ export default async function TodayPage() {
   const greeting = greetingFor(lang);
 
   let brief = await getTodaysBrief();
-  if (!brief) {
+  // An empty brief is rebuilt rather than kept. If the day's first view
+  // lands before any story has been indexed -- the news stale, its refresh
+  // still running in the background -- the brief comes out with no
+  // sections, and caching that left Today blank until midnight. Rebuilding
+  // an empty brief makes no AI call: there is nothing yet to summarise.
+  if (!brief || brief.content.sections.length === 0) {
     // First view of the day: build the brief from already-indexed stories.
     try {
       await generateDailyBrief();

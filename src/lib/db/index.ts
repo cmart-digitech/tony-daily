@@ -39,7 +39,13 @@ function createHandle(): DbHandle {
       authToken: process.env.TURSO_AUTH_TOKEN,
     });
     const db = drizzleLibsql(client, { schema });
-    return { db, kind: "libsql", client, ready: ensureSchema(client) };
+    // A failed migration abandons this handle (see handle()); close its
+    // client rather than leak a connection per retry.
+    const ready = ensureSchema(client).catch((err) => {
+      client.close();
+      throw err;
+    });
+    return { db, kind: "libsql", client, ready };
   }
   const resolved = path.resolve(/* turbopackIgnore: true */ process.cwd(), DB_PATH);
   fs.mkdirSync(path.dirname(resolved), { recursive: true });
@@ -56,15 +62,20 @@ function createHandle(): DbHandle {
     );
   }
   const sqlite = new Database(resolved);
-  sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("busy_timeout = 5000");
-  sqlite.exec(MIGRATION_SQL);
-  for (const statement of ADDITIVE_MIGRATIONS) {
-    try {
-      sqlite.exec(statement);
-    } catch {
-      /* column already present */
+  try {
+    sqlite.pragma("journal_mode = WAL");
+    sqlite.pragma("busy_timeout = 5000");
+    sqlite.exec(MIGRATION_SQL);
+    for (const statement of ADDITIVE_MIGRATIONS) {
+      try {
+        sqlite.exec(statement);
+      } catch (err) {
+        if (!isDuplicateColumnError(err)) throw err;
+      }
     }
+  } catch (err) {
+    sqlite.close();
+    throw err;
   }
   const db = drizzleSqlite(sqlite, { schema }) as unknown as AppDb;
   return { db, kind: "sqlite", client: null, ready: Promise.resolve() };
@@ -72,7 +83,14 @@ function createHandle(): DbHandle {
 
 function handle(): DbHandle {
   if (!globalThis.__tonyDailyDb) {
-    globalThis.__tonyDailyDb = createHandle();
+    const h = createHandle();
+    // A migration that failed (see ensureSchema) must not poison this
+    // instance for its whole lifetime: forget the handle so the next
+    // request connects and migrates afresh.
+    h.ready.catch(() => {
+      if (globalThis.__tonyDailyDb === h) globalThis.__tonyDailyDb = undefined;
+    });
+    globalThis.__tonyDailyDb = h;
   }
   return globalThis.__tonyDailyDb;
 }
@@ -140,10 +158,20 @@ async function ensureSchema(client: Client): Promise<void> {
   for (const statement of ADDITIVE_MIGRATIONS) {
     try {
       await client.execute(statement);
-    } catch {
-      /* column already present */
+    } catch (err) {
+      // Only "already there" is expected. Anything else -- a dropped
+      // connection on a cold start -- must not be swallowed: the code reads
+      // and writes these columns on every query, so a missing one would
+      // break every page and every ingest, silently, until the instance
+      // was recycled. Failing here lets getDb() retry on the next request.
+      if (!isDuplicateColumnError(err)) throw err;
     }
   }
+}
+
+/** The one failure an additive migration expects: the column exists already. */
+export function isDuplicateColumnError(err: unknown): boolean {
+  return /duplicate column/i.test(err instanceof Error ? err.message : String(err));
 }
 
 /** Schema bootstrap — plain SQL so both drivers migrate identically. */

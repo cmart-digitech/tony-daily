@@ -4,6 +4,7 @@ import { getSource } from "@/lib/sources/registry";
 import { timeAgo } from "@/lib/format";
 import { type UiLanguage } from "@/lib/i18n";
 import ArticlePlaceholder from "./ArticlePlaceholder";
+import VerificationBadge from "./VerificationBadge";
 
 /**
  * Marks a card whose story is a video, so a reader can tell before clicking.
@@ -11,16 +12,24 @@ import ArticlePlaceholder from "./ArticlePlaceholder";
  * not read as a badge that makes video look more important than text.
  * No runtime is shown because the feed does not carry one
  * (docs/VIDEO_POLICY.md).
+ *
+ * Overlaid on a photo where the card has one; inline in the meta line where
+ * it does not (standard and compact rows), so no variant hides the fact.
  */
-function VideoMark() {
+function VideoMark({ label, inline = false }: { label: string; inline?: boolean }) {
   return (
-    <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-sm bg-black/60 px-2 py-1 text-[10px] uppercase tracking-widest text-white">
+    <span
+      className={
+        inline
+          ? "inline-flex items-center gap-1 uppercase tracking-widest text-[10px] text-ink-2"
+          : "absolute left-2 top-2 flex items-center gap-1.5 rounded-sm bg-black/60 px-2 py-1 text-[10px] uppercase tracking-widest text-white"
+      }
+    >
       <span aria-hidden>▶</span>
-      Video
+      {label}
     </span>
   );
 }
-import VerificationBadge from "./VerificationBadge";
 
 export type CardVariant = "hero" | "visual" | "standard" | "compact";
 
@@ -51,8 +60,20 @@ export default function ArticleCard({
     (lang === "zh" && article.originalLanguage !== "zh-HK") ||
     (lang === "en" && article.originalLanguage !== "en");
 
+  const videoLabel = lang === "zh" ? "影片" : "Video";
+  // Image variants carry the mark on the photo; the rest carry it here.
+  const inlineVideoMark =
+    Boolean(article.videoId) &&
+    (variant === "compact" || variant === "standard" || !article.imageUrl);
+
   const meta = (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
+      {inlineVideoMark && (
+        <>
+          <VideoMark label={videoLabel} inline />
+          <span aria-hidden>·</span>
+        </>
+      )}
       <span className="font-medium text-ink-2">{source?.name ?? article.sourceId}</span>
       <span aria-hidden>·</span>
       <span>{ago}</span>
@@ -76,7 +97,7 @@ export default function ArticleCard({
                   {article.imageAttribution}
                 </figcaption>
               )}
-              {article.videoId && <VideoMark />}
+              {article.videoId && <VideoMark label={videoLabel} />}
             </figure>
           ) : (
             <ArticlePlaceholder
@@ -121,7 +142,7 @@ export default function ArticleCard({
                 loading="lazy"
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
               />
-              {article.videoId && <VideoMark />}
+              {article.videoId && <VideoMark label={videoLabel} />}
             </figure>
           ) : (
             <ArticlePlaceholder

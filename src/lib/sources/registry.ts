@@ -449,9 +449,18 @@ export const SOURCES: SourceConfig[] = [
   // @southchinamorningpost) and Bloomberg Television (@markets carries the
   // items). See docs/VIDEO_POLICY.md.
   //
+  // A feed with entries is not enough on its own. The 15 Sept audit found
+  // two ids that resolved and returned entries but were the wrong channel:
+  // "Now News" was NOW (@NOWTV), a UK entertainment service posting drama
+  // promos, and "SCMP TV" was @SCMPtv, an unrelated account silent since
+  // 2017. Both were removed. A channel is now checked by its own page title
+  // and handle, and its newest entry must be recent.
+  //
   // Authority mirrors each publisher's text feed -- a broadcaster's video
   // desk is the same newsroom -- so video competes on the same terms and is
-  // never promoted merely for being video.
+  // never promoted merely for being video. Channels with no text feed here
+  // take the authority of the nearest comparable text source: TVB and Now
+  // match SCMP (82); Reuters and Bloomberg match BBC (85).
   {
     id: "yt-rthk",
     name: "RTHK News (video)",
@@ -487,17 +496,20 @@ export const SOURCES: SourceConfig[] = [
     enabled: true,
   },
   {
-    id: "yt-now-news",
-    name: "Now News (video)",
-    nameZh: "now新聞（影片）",
+    // Now TV's business news desk. Verified 15 Sept 2026: linked from the
+    // footer of news.now.com itself, page title "Now 財經 新聞", handle
+    // @nowbnc, newest entry the same day. Markets and property coverage.
+    id: "yt-now-finance",
+    name: "Now Finance News (video)",
+    nameZh: "Now財經新聞（影片）",
     language: "zh-HK",
     region: "hk",
     type: "youtube",
     tier: "B",
     authority: 82,
-    categories: ["hk"],
-    feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UCnwaU7j34C92ywMHXJahHRA",
-    homepage: "https://www.youtube.com/@NowTV",
+    categories: ["markets", "hk"],
+    feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UCChMBgirwM2nnT3Bbe8METQ",
+    homepage: "https://www.youtube.com/@nowbnc",
     primary: false,
     enabled: true,
   },
@@ -508,24 +520,10 @@ export const SOURCES: SourceConfig[] = [
     region: "hk",
     type: "youtube",
     tier: "B",
-    authority: 85,
+    authority: 82,
     categories: ["hk"],
     feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UC4SUWizzKc1tptprBkWjX2Q",
     homepage: "https://www.youtube.com/@southchinamorningpost",
-    primary: false,
-    enabled: true,
-  },
-  {
-    id: "yt-scmp-tv",
-    name: "SCMP TV",
-    language: "en",
-    region: "hk",
-    type: "youtube",
-    tier: "B",
-    authority: 84,
-    categories: ["hk"],
-    feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UCezZxnyyvF9Yv3qqfM1Gn7A",
-    homepage: "https://www.youtube.com/@SCMPTV",
     primary: false,
     enabled: true,
   },
@@ -536,7 +534,7 @@ export const SOURCES: SourceConfig[] = [
     region: "global",
     type: "youtube",
     tier: "B",
-    authority: 88,
+    authority: 85,
     categories: ["world"],
     feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UC16niRr50-MSBwiO3YDb3RA",
     homepage: "https://www.youtube.com/@bbcnews",
@@ -550,7 +548,7 @@ export const SOURCES: SourceConfig[] = [
     region: "global",
     type: "youtube",
     tier: "B",
-    authority: 88,
+    authority: 85,
     categories: ["world"],
     feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UChqUTb7kYRX8-EiaN3XFrSQ",
     homepage: "https://www.youtube.com/@reuters",
@@ -559,12 +557,13 @@ export const SOURCES: SourceConfig[] = [
   },
   {
     id: "yt-bloomberg",
-    name: "Bloomberg Markets (video)",
+    // The channel's own title is "Bloomberg Television"; @markets is its handle.
+    name: "Bloomberg Television (video)",
     language: "en",
     region: "global",
     type: "youtube",
     tier: "B",
-    authority: 86,
+    authority: 85,
     categories: ["markets"],
     feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UCIALMKvObZNtJ6AmdCLP7Lg",
     homepage: "https://www.youtube.com/@markets",
@@ -592,7 +591,7 @@ export const SOURCES: SourceConfig[] = [
     region: "global",
     type: "youtube",
     tier: "C",
-    authority: 74,
+    authority: 75,
     categories: ["architecture"],
     feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UC3r_kdJocuqtDYb2GgM42Ng",
     homepage: "https://www.youtube.com/@archdaily",

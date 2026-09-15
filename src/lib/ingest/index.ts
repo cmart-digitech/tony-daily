@@ -17,6 +17,7 @@ import {
 } from "./text";
 import { getPreferences } from "@/lib/prefs";
 import { scoreArticle } from "@/lib/rank/score";
+import { isGroundable } from "@/lib/retrieval";
 
 const SOURCE_COOLDOWN_MS = 15 * 60 * 1000; // be polite to publishers
 const FETCH_TIMEOUT_MS = 20_000;
@@ -139,6 +140,35 @@ export function cleanVideoDescription(raw: string): string {
     .slice(0, 500);
 }
 
+/**
+ * A channel feed lists its latest 15 uploads whatever their age, so a
+ * channel that posts weekly -- or has gone quiet -- hands over months-old
+ * clips that would arrive looking new. Articles carry no such risk: a news
+ * RSS feed only ever lists recent items. A week keeps the architecture
+ * channels, which post every few days, and drops everything stale.
+ */
+export const VIDEO_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function isTooOldForVideo(publishedAt: number | null, now = Date.now()): boolean {
+  // Every YouTube entry is dated; one that is not cannot show it is current.
+  return publishedAt == null || now - publishedAt > VIDEO_MAX_AGE_MS;
+}
+
+/**
+ * The text a story is classified by. For video this is the title alone: a
+ * channel description is promotional copy (docs/VIDEO_POLICY.md), and in
+ * the 15 Sept audit it pulled 31 of 250 videos onto the wrong beat -- a
+ * New York Fashion Week clip into Infrastructure, architecture tours and a
+ * bank CEO interview into Property.
+ */
+export function classifiableText(
+  title: string,
+  excerpt: string | null,
+  source: SourceConfig,
+): string {
+  return source.type === "youtube" ? title : `${title} ${excerpt ?? ""}`;
+}
+
 async function fetchWithRetry(source: SourceConfig, attempts = 2) {
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
@@ -200,17 +230,19 @@ async function ingestSource(source: SourceConfig): Promise<IngestResult> {
       const video = source.type === "youtube" ? youtubeParts(item) : null;
       // A video with no id is not embeddable, so it is not usable.
       if (source.type === "youtube" && !video?.videoId) continue;
+      const publishedRaw = item.isoDate ?? item.pubDate;
+      const publishedAt = publishedRaw ? Date.parse(publishedRaw) || null : null;
+      if (video && isTooOldForVideo(publishedAt)) continue;
       const excerpt =
         video?.description ||
         stripHtml(item.contentSnippet ?? item.content ?? "").slice(0, 500);
-      const classifiable = `${title} ${excerpt}`;
-      const publishedRaw = item.isoDate ?? item.pubDate;
+      const classifiable = classifiableText(title, excerpt, source);
       normalised.push({
         canonicalUrl: canonical,
         title,
         hash: contentHash([source.id, title, canonical]),
         excerpt,
-        publishedAt: publishedRaw ? Date.parse(publishedRaw) || null : null,
+        publishedAt,
         imageUrl: video?.thumbnail ?? pickImage(item),
         author: item.creator ?? null,
         category: classifyCategory(classifiable, source),
@@ -483,7 +515,7 @@ async function reclassify(all: boolean): Promise<number> {
   for (const a of recent) {
     const source = sourceById.get(a.sourceId);
     if (!source) continue;
-    const text = `${a.originalTitle} ${a.excerpt ?? ""}`;
+    const text = classifiableText(a.originalTitle, a.excerpt, source);
     const category = classifyCategory(text, source);
     const region = classifyRegion(text, source);
     if (category === a.category && region === a.region) continue;
@@ -628,9 +660,15 @@ export async function applyCorroboration() {
   }
   const upgradeIds: number[] = [];
   for (const [, articles] of byCluster) {
-    const sources = new Set(articles.map((a) => a.sourceId));
+    // Only written reporting corroborates, and only written reporting is
+    // upgraded. A video is not evidence (docs/VIDEO_POLICY.md) -- and RTHK's
+    // YouTube channel clustering with RTHK's own text feed would otherwise
+    // mark the article CORROBORATED on the strength of its own newsroom.
+    // The status is shown to the AI with every source, so this matters.
+    const written = articles.filter(isGroundable);
+    const sources = new Set(written.map((a) => a.sourceId));
     if (sources.size >= 2) {
-      for (const a of articles) {
+      for (const a of written) {
         if (a.verificationStatus === "SINGLE_SOURCE") upgradeIds.push(a.id);
       }
     }
@@ -676,7 +714,8 @@ export async function rescoreRecentArticles() {
   for (const a of recent) {
     if (a.clusterId == null) continue;
     if (!clusterSources.has(a.clusterId)) clusterSources.set(a.clusterId, new Set());
-    clusterSources.get(a.clusterId)!.add(a.sourceId);
+    // Corroboration is counted from written reporting only (as above).
+    if (isGroundable(a)) clusterSources.get(a.clusterId)!.add(a.sourceId);
     const t = a.publishedAt ?? a.fetchedAt;
     const prev = clusterEarliest.get(a.clusterId);
     if (prev === undefined || t < prev) clusterEarliest.set(a.clusterId, t);

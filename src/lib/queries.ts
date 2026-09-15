@@ -1,7 +1,8 @@
 import { cache } from "react";
-import { desc, eq, gt, inArray } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { dedupeByCluster, type ArticleRow } from "@/lib/retrieval";
+import { SOURCES, getSource } from "@/lib/sources/registry";
 
 const WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 /** One page render never needs more than this many candidates. */
@@ -55,19 +56,97 @@ export async function articlesByCategory(
   ).slice(0, limit);
 }
 
+export type VideoGroupKey = "hk" | "international" | "design";
+
+/** Which shelf of the Video page a channel belongs on. */
+export function videoGroupFor(sourceId: string): VideoGroupKey {
+  const source = getSource(sourceId);
+  if (source?.categories.includes("architecture")) return "design";
+  return source?.region === "hk" ? "hk" : "international";
+}
+
 /**
- * Stories that carry a video, newest first.
+ * The Video page in three shelves -- Hong Kong, International, Architecture
+ * & Design -- each newest first, with no channel holding more than
+ * `perSource` places.
+ *
+ * One newest-first list does not work: in the 15 Sept audit its first 30
+ * places were all Reuters, Bloomberg, BBC and RTHK, because wire and
+ * business channels post dozens of clips a day. TVB, Now, SCMP and both
+ * architecture channels -- the video most relevant here -- never appeared.
+ * Channels also re-upload a clip under the same title, so identical titles
+ * within a channel show once.
+ */
+export function groupVideos(
+  rows: ArticleRow[],
+  perSource = 3,
+  perGroup = 12,
+): Record<VideoGroupKey, ArticleRow[]> {
+  const groups: Record<VideoGroupKey, ArticleRow[]> = { hk: [], international: [], design: [] };
+  const perSourceCount = new Map<string, number>();
+  const seenTitles = new Set<string>();
+  const newestFirst = [...rows].sort(
+    (a, b) => (b.publishedAt ?? b.fetchedAt) - (a.publishedAt ?? a.fetchedAt),
+  );
+  for (const a of newestFirst) {
+    if (!a.videoId) continue;
+    // A channel taken out of the registry -- as two wrong ones were -- stops
+    // appearing at once, rather than lingering until its clips age out.
+    if (!getSource(a.sourceId)) continue;
+    const titleKey = `${a.sourceId}|${a.originalTitle.trim().toLowerCase()}`;
+    if (seenTitles.has(titleKey)) continue;
+    const used = perSourceCount.get(a.sourceId) ?? 0;
+    if (used >= perSource) continue;
+    const group = groups[videoGroupFor(a.sourceId)];
+    if (group.length >= perGroup) continue;
+    seenTitles.add(titleKey);
+    perSourceCount.set(a.sourceId, used + 1);
+    group.push(a);
+  }
+  return groups;
+}
+
+/**
+ * Stories that carry a video, shelved for the Video page.
  *
  * Video is an attribute rather than a category, so this filters on the
  * attribute and leaves categorisation alone: the same item can be Hong Kong
- * news AND a video. Cluster de-duplication still applies, so a video and a
- * written report of one event resolve to a single story.
+ * news AND a video. Cluster de-duplication still applies, so each cluster
+ * keeps its best-scored video.
  */
-export async function articlesWithVideo(limit = 30): Promise<ArticleRow[]> {
-  return dedupeByCluster(
-    (await recentArticles(600)).filter((a) => Boolean(a.videoId)),
-  ).slice(0, limit);
+export async function videoShelves(): Promise<Record<VideoGroupKey, ArticleRow[]>> {
+  // Not the Today pool: that is the top 400 stories by score, and the
+  // architecture channels -- posting every few days, from lower-authority
+  // publishers -- never ranked into it, so their shelf came up empty. Nor
+  // one query over all video: the wire channels post hundreds of clips a
+  // week and would crowd the others out of any row limit. Each channel's
+  // newest few instead, fetched together; the shelf shows three of them.
+  const db = await getDb();
+  const since = Date.now() - VIDEO_WINDOW_MS;
+  const perChannel = await Promise.all(
+    SOURCES.filter((s) => s.type === "youtube").map((s) =>
+      db
+        .select()
+        .from(schema.articles)
+        .where(
+          and(
+            eq(schema.articles.sourceId, s.id),
+            isNotNull(schema.articles.videoId),
+            gt(schema.articles.fetchedAt, since),
+          ),
+        )
+        .orderBy(desc(schema.articles.publishedAt))
+        .limit(8)
+        .all(),
+    ),
+  );
+  // Score order first, so a cluster keeps its best-scored video.
+  const rows = perChannel.flat().sort((a, b) => b.score - a.score);
+  return groupVideos(dedupeByCluster(rows));
 }
+
+/** Same as the ingest age limit for video (VIDEO_MAX_AGE_MS). */
+const VIDEO_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function getArticle(id: number): Promise<ArticleRow | undefined> {
   const db = await getDb();
