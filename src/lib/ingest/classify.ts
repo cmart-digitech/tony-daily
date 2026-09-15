@@ -9,7 +9,16 @@ import type { Category, SourceConfig } from "@/lib/sources/registry";
 
 const CATEGORY_KEYWORDS: Record<string, RegExp[]> = {
   property: [
-    /\b(propert(y|ies)|real estate|housing|land sale|land premium|tender|home price|rents?|residential|office leasing|mortgage|developer|redevelopment|urban renewal|estate|flats?)\b/i,
+    /\b(propert(y|ies)|real estate|housing|land sale|land premium|tender|home prices?|rents?|residential|office leasing|mortgage|developer|redevelopment|urban renewal|estate)\b/i,
+    // "Flat" is Hong Kong English for an apartment -- and also a market
+    // reading ("Hang Seng ends flat"), an idiom ("warnings fall flat") and a
+    // landform ("salt flats"). An audit found all of those filed under
+    // Property, which outranks a markets desk's own default. So the plural
+    // counts (it is nearly always housing), and the singular counts only
+    // where the words around it make it a home.
+    /(?<!\b(?:salt|mud|tidal)\s)\bflats\b/i,
+    /\b(?:public|private|subdivided|rental|luxury|studio|HOS|\d+-bedroom|one-bedroom|two-bedroom|three-bedroom)\s+flat\b(?![\s-]+(?:rate|fee|screen|pack|roof|white)\b)/i,
+    /\bflat[\s-]+(?:prices?|rents?|owners?|buyers?|supply|sales|purchases?|hunt(?:ing)?|tenants?)\b/i,
     /地產|樓市|樓價|物業|住宅|賣地|地皮|發展商|按揭|租金|收購重建|居屋|公屋/,
   ],
   architecture: [

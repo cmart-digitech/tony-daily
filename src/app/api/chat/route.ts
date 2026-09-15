@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
 import { answerQuestion, isAiConfigured } from "@/lib/ai";
-import { extractQuerySymbols, searchArticles, toContext } from "@/lib/retrieval";
+import { extractQuerySymbols, groundingContext, searchArticles } from "@/lib/retrieval";
 import { getCachedQuote, isMarketDataConfigured } from "@/lib/market";
 import { indexChatMessage } from "@/lib/search/fts";
 import type { Quote } from "@/lib/market/types";
@@ -95,7 +95,9 @@ export async function POST(req: NextRequest) {
   await indexChatMessage(Number(userMsg.lastInsertRowid), conversationId, body.data.message);
 
   // Retrieval before generation: indexed news + (if relevant) market data.
-  const articles = (await searchArticles(body.data.message, 12)).map(toContext);
+  // Over-fetch, then drop video (never evidence), so a question about a
+  // story covered mostly on video still gets a full set of written sources.
+  const articles = groundingContext(await searchArticles(body.data.message, 24)).slice(0, 12);
   const memories = (await db.select().from(schema.userMemories).all()).map(
     (m) => m.content,
   );

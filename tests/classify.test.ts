@@ -25,6 +25,60 @@ describe("classifyCategory", () => {
   });
 });
 
+describe("'flat' means an apartment, not an idiom", () => {
+  const bbc = getSource("bbc-business")!;
+  const bloomberg = getSource("yt-bloomberg")!;
+
+  it("still files flats as property", () => {
+    // Real headlines.
+    expect(
+      classifyCategory("Hong Kong homebuyers snap up 138 Garden Regency flats in New Territories project", rthk),
+    ).toBe("property");
+    expect(
+      classifyCategory("Hong Kong’s subdivided flats are turning into heat traps. But what’s the fix?", rthk),
+    ).toBe("property");
+    expect(classifyCategory("China’s first-tier new home prices flat in July", rthk)).toBe(
+      "property",
+    );
+  });
+
+  it("files a singular flat as property where the context makes it a home", () => {
+    expect(classifyCategory("Falling flat prices hit owners in Tuen Mun", rthk)).toBe("property");
+    expect(classifyCategory("Government to buy back subdivided flat units", rthk)).toBe("property");
+    expect(
+      classifyCategory("Hong Kong’s red-hot rental market forces students to flat-hunt as early as April", rthk),
+    ).toBe("property");
+  });
+
+  it("does not file a flat market reading as property", () => {
+    // Found by review: each matched the first version of the rule.
+    const markets = getSource("rthk-en-finance")!;
+    for (const headline of [
+      "Hang Seng Index ends flat",
+      "HK stocks open flat",
+      "Asian shares mostly flat",
+      "Retail sales flat in August",
+    ]) {
+      expect(classifyCategory(headline, markets), headline).not.toBe("property");
+    }
+    expect(classifyCategory("New flat-screen displays unveiled", rthk)).not.toBe("property");
+    expect(classifyCategory("A house with a flat roof and deep eaves", dezeen)).toBe("architecture");
+  });
+
+  it("does not file the idiom or the landform as property", () => {
+    // Real headlines, each previously filed under Property.
+    expect(
+      classifyCategory("Dramatic insider warnings over AI fall flat with some in Silicon Valley", bbc),
+    ).not.toBe("property");
+    expect(
+      classifyCategory("Moynihan Says Bank Is Still Strong, Even If Trading Revenue Comes In Flat", bloomberg),
+    ).not.toBe("property");
+    expect(
+      classifyCategory('Gregory Orekhov places black fabric in "endless white surface" of Utah salt flats', dezeen),
+    ).toBe("architecture");
+  });
+});
+
 describe("incident guard", () => {
   it("keeps a fatal tunnel crash out of the built-environment sections", () => {
     // Real headline that previously led the Architecture section.

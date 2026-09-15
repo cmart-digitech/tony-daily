@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
-import { clusterMembers, type ArticleRow } from "@/lib/retrieval";
+import { clusterMembers, isGroundable, type ArticleRow } from "@/lib/retrieval";
 import { aiModelId, completeRaw, isAiConfigured } from "@/lib/ai";
 
 /**
@@ -56,7 +56,9 @@ RULES — absolute:
 const CATEGORIES_WITH_FACTS = new Set(["property", "architecture", "infrastructure"]);
 
 export function factsApplicable(article: ArticleRow): boolean {
-  return CATEGORIES_WITH_FACTS.has(article.category);
+  // Facts are extracted from reporting; a video's description is not
+  // reporting (docs/VIDEO_POLICY.md).
+  return CATEGORIES_WITH_FACTS.has(article.category) && isGroundable(article);
 }
 
 /**
@@ -95,7 +97,7 @@ export async function getOrExtractFacts(article: ArticleRow): Promise<FactsResul
   if (!factsApplicable(article)) return { facts: null, reason: "not-applicable" };
   if (!isAiConfigured()) return { facts: null, reason: "ai-not-configured" };
 
-  const members = await clusterMembers(article);
+  const members = (await clusterMembers(article)).filter(isGroundable);
   const sourceText = members
     .map((m) => `${m.originalTitle}\n${m.excerpt ?? ""}`)
     .join("\n\n")

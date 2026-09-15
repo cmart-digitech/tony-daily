@@ -31,6 +31,15 @@ export const articles = sqliteTable(
     originalLanguage: text("original_language").notNull(), // en | zh-HK
     /** AI-assisted rendering in the other language; never shown as the publisher's own. */
     translatedTitle: text("translated_title"),
+    /**
+     * Video is an ATTRIBUTE of a story, not a category: a video report and
+     * a written report of one event are two renditions of the same news.
+     * We hold the id and provider only -- enough to render the publisher's
+     * own embed, and deliberately not enough to host anything ourselves.
+     * See docs/VIDEO_POLICY.md.
+     */
+    videoId: text("video_id"),
+    videoProvider: text("video_provider"),
     excerpt: text("excerpt"),
     author: text("author"),
     publishedAt: integer("published_at"), // epoch ms; null if feed omits it

@@ -1,6 +1,6 @@
 import { desc, eq, gt, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { dedupeByCluster, toContext, type ArticleRow } from "@/lib/retrieval";
+import { dedupeByClusterPreferWritten, isGroundable, toContext, type ArticleRow } from "@/lib/retrieval";
 import { isAiConfigured, writeBriefOverview, aiModelId, type Citation } from "@/lib/ai";
 import { buildSourceBlock } from "@/lib/ai";
 import { getPreferences } from "@/lib/prefs";
@@ -29,17 +29,32 @@ export function hkDateKey(now = new Date()): string {
   return fmt.format(now); // YYYY-MM-DD
 }
 
-function pickSection(
+/**
+ * At most this many videos in any one brief section.
+ *
+ * Video is scored like everything else, but broadcasters publish clips far
+ * faster than newsrooms publish articles -- Bloomberg's channel alone posted
+ * 30 in a day. Ranked purely on score, the 15 Sept audit filled both the
+ * Greater China and Global sections entirely with video. This does not
+ * promote or penalise any single video; it stops one format taking a
+ * section by volume alone. See docs/VIDEO_POLICY.md.
+ */
+export const MAX_VIDEOS_PER_SECTION = 1;
+
+export function pickSection(
   pool: ArticleRow[],
   used: Set<number>,
   filter: (a: ArticleRow) => boolean,
   max: number,
 ): number[] {
   const picked: number[] = [];
+  let videos = 0;
   for (const a of pool) {
     if (picked.length >= max) break;
     if (used.has(a.id)) continue;
     if (!filter(a)) continue;
+    if (a.videoId && videos >= MAX_VIDEOS_PER_SECTION) continue;
+    if (a.videoId) videos++;
     used.add(a.id);
     picked.push(a.id);
   }
@@ -58,7 +73,8 @@ export async function generateDailyBrief(): Promise<{
 }> {
   const db = await getDb();
   const cutoff = Date.now() - BRIEF_WINDOW_MS;
-  const recent = dedupeByCluster(
+  // Written reporting represents a cluster where it exists (see retrieval.ts).
+  const recent = dedupeByClusterPreferWritten(
     await db
       .select()
       .from(schema.articles)
@@ -97,7 +113,15 @@ export async function generateDailyBrief(): Promise<{
 
   let overview: string | null = null;
   let overviewCitations: Citation[] = [];
-  const topIds = sections.flatMap((s) => s.articleIds).slice(0, 12);
+  // The overview may cite written reporting only -- video is never evidence.
+  const byId = new Map(recent.map((a) => [a.id, a]));
+  const topIds = sections
+    .flatMap((s) => s.articleIds)
+    .filter((id) => {
+      const a = byId.get(id);
+      return a ? isGroundable(a) : false;
+    })
+    .slice(0, 12);
   if (isAiConfigured() && topIds.length > 0) {
     const topArticles = recent.filter((a) => topIds.includes(a.id));
     const prefs = await getPreferences();

@@ -24,7 +24,7 @@ export default function SearchBox({ placeholder }: { placeholder: string }) {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder={placeholder}
-        className="w-52 border-b border-line bg-transparent px-1 py-1 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none lg:w-64"
+        className="w-52 border-b border-line bg-transparent px-1 py-1 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none lg:w-64 xl:w-36"
       />
     </form>
   );

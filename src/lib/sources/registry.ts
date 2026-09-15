@@ -29,7 +29,13 @@ export interface SourceConfig {
   nameZh?: string;
   language: "en" | "zh-HK";
   region: "hk" | "china" | "apac" | "global";
-  type: "rss";
+  /**
+   * "rss" is an article feed. "youtube" is a channel's Atom feed, which
+   * carries a video id and a thumbnail instead of article text — see
+   * docs/VIDEO_POLICY.md. Both are fetched by the same parser; only the
+   * per-item mapping differs.
+   */
+  type: "rss" | "youtube";
   tier: SourceTier;
   authority: number;
   /** Default categories; per-article classification can refine these. */
@@ -39,6 +45,19 @@ export interface SourceConfig {
   /** true for official/government sources whose statements are primary evidence. */
   primary: boolean;
   enabled: boolean;
+  /**
+   * Video sources only. Some channels disable playback on other websites.
+   * The video policy says a video we may not embed is a video we do not
+   * embed -- so those render as a thumbnail linking to the publisher
+   * instead of a player that would show YouTube's own error.
+   *
+   * Not detectable server-side without the paid YouTube Data API: oEmbed
+   * returns 200 either way, and loading an embed outside a page context
+   * fails with a referrer error that looks the same for everyone. So this
+   * is verified by watching a card play in the running app, and recorded
+   * here per channel. Undefined means embeddable.
+   */
+  embeddable?: boolean;
 }
 
 export const SOURCES: SourceConfig[] = [
@@ -417,6 +436,165 @@ export const SOURCES: SourceConfig[] = [
     categories: ["architecture"],
     feedUrl: "https://www.designboom.com/feed/",
     homepage: "https://www.designboom.com",
+    primary: false,
+    enabled: true,
+  },
+
+  // ── Video — YouTube channel feeds ──────────────────────────────────
+  //
+  // Every channel id below was resolved from its canonical URL and its feed
+  // fetched and confirmed to contain entries on 12 Sept 2026. Channels that
+  // resolved but returned an EMPTY feed were rejected rather than added
+  // hopefully: HK01, @scmp (the publishing channel is
+  // @southchinamorningpost) and Bloomberg Television (@markets carries the
+  // items). See docs/VIDEO_POLICY.md.
+  //
+  // A feed with entries is not enough on its own. The 15 Sept audit found
+  // two ids that resolved and returned entries but were the wrong channel:
+  // "Now News" was NOW (@NOWTV), a UK entertainment service posting drama
+  // promos, and "SCMP TV" was @SCMPtv, an unrelated account silent since
+  // 2017. Both were removed. A channel is now checked by its own page title
+  // and handle, and its newest entry must be recent.
+  //
+  // Authority mirrors each publisher's text feed -- a broadcaster's video
+  // desk is the same newsroom -- so video competes on the same terms and is
+  // never promoted merely for being video. Channels with no text feed here
+  // take the authority of the nearest comparable text source: TVB and Now
+  // match SCMP (82); Reuters and Bloomberg match BBC (85).
+  {
+    id: "yt-rthk",
+    name: "RTHK News (video)",
+    nameZh: "香港電台新聞（影片）",
+    language: "zh-HK",
+    region: "hk",
+    type: "youtube",
+    tier: "B",
+    authority: 90,
+    categories: ["hk"],
+    feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UCwuTCNZqSMfaiP63cGDb8LQ",
+    homepage: "https://www.youtube.com/@rthk_news",
+    primary: false,
+    enabled: true,
+    // Verified in the running app on 12 Sept 2026: the embed returns
+    // "Playback on other websites has been disabled by the video owner".
+    // Their videos are linked to, never framed.
+    embeddable: false,
+  },
+  {
+    id: "yt-tvb-news",
+    name: "TVB News (video)",
+    nameZh: "無綫新聞（影片）",
+    language: "zh-HK",
+    region: "hk",
+    type: "youtube",
+    tier: "B",
+    authority: 82,
+    categories: ["hk"],
+    feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UC_ifDTtFAcsj-wJ5JfM27CQ",
+    homepage: "https://www.youtube.com/@tvbnewsofficial",
+    primary: false,
+    enabled: true,
+  },
+  {
+    // Now TV's business news desk. Verified 15 Sept 2026: linked from the
+    // footer of news.now.com itself, page title "Now 財經 新聞", handle
+    // @nowbnc, newest entry the same day. Markets and property coverage.
+    id: "yt-now-finance",
+    name: "Now Finance News (video)",
+    nameZh: "Now財經新聞（影片）",
+    language: "zh-HK",
+    region: "hk",
+    type: "youtube",
+    tier: "B",
+    authority: 82,
+    categories: ["markets", "hk"],
+    feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UCChMBgirwM2nnT3Bbe8METQ",
+    homepage: "https://www.youtube.com/@nowbnc",
+    primary: false,
+    enabled: true,
+  },
+  {
+    id: "yt-scmp",
+    name: "SCMP (video)",
+    language: "en",
+    region: "hk",
+    type: "youtube",
+    tier: "B",
+    authority: 82,
+    categories: ["hk"],
+    feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UC4SUWizzKc1tptprBkWjX2Q",
+    homepage: "https://www.youtube.com/@southchinamorningpost",
+    primary: false,
+    enabled: true,
+  },
+  {
+    id: "yt-bbc-news",
+    name: "BBC News (video)",
+    language: "en",
+    region: "global",
+    type: "youtube",
+    tier: "B",
+    authority: 85,
+    categories: ["world"],
+    feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UC16niRr50-MSBwiO3YDb3RA",
+    homepage: "https://www.youtube.com/@bbcnews",
+    primary: false,
+    enabled: true,
+  },
+  {
+    id: "yt-reuters",
+    name: "Reuters (video)",
+    language: "en",
+    region: "global",
+    type: "youtube",
+    tier: "B",
+    authority: 85,
+    categories: ["world"],
+    feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UChqUTb7kYRX8-EiaN3XFrSQ",
+    homepage: "https://www.youtube.com/@reuters",
+    primary: false,
+    enabled: true,
+  },
+  {
+    id: "yt-bloomberg",
+    // The channel's own title is "Bloomberg Television"; @markets is its handle.
+    name: "Bloomberg Television (video)",
+    language: "en",
+    region: "global",
+    type: "youtube",
+    tier: "B",
+    authority: 85,
+    categories: ["markets"],
+    feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UCIALMKvObZNtJ6AmdCLP7Lg",
+    homepage: "https://www.youtube.com/@markets",
+    primary: false,
+    enabled: true,
+  },
+  {
+    id: "yt-dezeen",
+    name: "Dezeen (video)",
+    language: "en",
+    region: "global",
+    type: "youtube",
+    tier: "C",
+    authority: 76,
+    categories: ["architecture"],
+    feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UCsWG9ANbrmgR0z-eFk_A3YQ",
+    homepage: "https://www.youtube.com/@dezeen",
+    primary: false,
+    enabled: true,
+  },
+  {
+    id: "yt-archdaily",
+    name: "ArchDaily (video)",
+    language: "en",
+    region: "global",
+    type: "youtube",
+    tier: "C",
+    authority: 75,
+    categories: ["architecture"],
+    feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=UC3r_kdJocuqtDYb2GgM42Ng",
+    homepage: "https://www.youtube.com/@archdaily",
     primary: false,
     enabled: true,
   },

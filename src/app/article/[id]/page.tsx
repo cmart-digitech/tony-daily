@@ -7,12 +7,13 @@ import ListenButton from "@/components/ListenButton";
 import SaveButton from "@/components/SaveButton";
 import SummaryPanel from "@/components/SummaryPanel";
 import VerificationBadge from "@/components/VerificationBadge";
+import VideoEmbed from "@/components/VideoEmbed";
 import { isAiConfigured } from "@/lib/ai";
 import { hkDateTime } from "@/lib/format";
 import { aiLanguage, t } from "@/lib/i18n";
 import { getArticle, getEntities, relatedArticles, savedArticleIds } from "@/lib/queries";
 import { getPreferences } from "@/lib/prefs";
-import { clusterMembers } from "@/lib/retrieval";
+import { clusterMembers, isGroundable } from "@/lib/retrieval";
 import { getSource } from "@/lib/sources/registry";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,7 @@ export default async function ArticlePage({
   const lang = prefs.language;
   const zh = lang === "zh" ? "zh" : "en";
   const members = allMembers.filter((m) => m.id !== article.id);
+  const hasWrittenReporting = allMembers.some(isGroundable);
   const saved = savedIds.has(article.id);
   const cat = CATEGORY_LABELS[article.category] ?? CATEGORY_LABELS.general;
   const isVisual = article.category === "architecture" || article.category === "property";
@@ -72,7 +74,21 @@ export default async function ArticlePage({
         label={zh === "zh" ? "專注閱讀" : "Focus Reading"}
         exitLabel={zh === "zh" ? "退出專注閱讀" : "Exit Focus Reading"}
       >
-      {article.imageUrl && (
+      {article.videoId ? (
+        // A video story plays here, on the same click-to-load terms as the
+        // Video page -- the thumbnail alone would look like a photo.
+        <div className="mb-8">
+          <VideoEmbed
+            videoId={article.videoId}
+            title={article.originalTitle}
+            thumbnail={article.imageUrl}
+            source={source?.name ?? article.sourceId}
+            watchUrl={article.canonicalUrl}
+            embeddable={source?.embeddable !== false}
+            zh={zh === "zh"}
+          />
+        </div>
+      ) : article.imageUrl && (
         <figure className={`mb-8 ${isVisual ? "-mx-4 sm:-mx-6" : ""}`}>
           <img
             src={article.imageUrl}
@@ -159,21 +175,31 @@ export default async function ArticlePage({
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-ink-3">
           {t(lang, "summarise", { bilingual: true })}
         </h2>
-        <SummaryPanel
-          articleId={article.id}
-          language={aiLanguage(lang)}
-          aiConfigured={isAiConfigured()}
-          labels={{
-            s30: t(lang, "min30sec"),
-            m2: t(lang, "min2"),
-            deep: t(lang, "deepDive"),
-            aiLabel: t(lang, "aiSummaryLabel"),
-            notConfigured: t(lang, "aiNotConfigured"),
-          }}
-        />
+        {hasWrittenReporting ? (
+          <SummaryPanel
+            articleId={article.id}
+            language={aiLanguage(lang)}
+            aiConfigured={isAiConfigured()}
+            labels={{
+              s30: t(lang, "min30sec"),
+              m2: t(lang, "min2"),
+              deep: t(lang, "deepDive"),
+              aiLabel: t(lang, "aiSummaryLabel"),
+              notConfigured: t(lang, "aiNotConfigured"),
+            }}
+          />
+        ) : (
+          // Video is never evidence, so a story only on video has nothing an
+          // AI summary could honestly be written from (docs/VIDEO_POLICY.md).
+          <p className="border border-line bg-subtle px-4 py-3 text-sm text-ink-2">
+            {zh === "zh"
+              ? "此報道只有影片版本。AI 摘要只會根據文字報道撰寫，請直接觀看影片。"
+              : "This story is only available as video. AI summaries are written from text reporting only, so please watch the video itself."}
+          </p>
+        )}
       </section>
 
-      {isVisual && (
+      {isVisual && isGroundable(article) && (
         <ArticleFactsPanel
           articleId={article.id}
           labels={{

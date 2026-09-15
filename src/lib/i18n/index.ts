@@ -10,6 +10,7 @@ const STRINGS = {
   saved: { en: "Saved", zh: "收藏" },
   audio: { en: "Audio", zh: "音訊" },
   art: { en: "Art", zh: "藝術" },
+  video: { en: "Video", zh: "影片" },
   artAuctions: { en: "Art + Auctions", zh: "藝術與拍賣" },
   listenToBrief: { en: "Listen to Today's Brief", zh: "收聽今日簡報" },
   settings: { en: "Settings", zh: "設定" },

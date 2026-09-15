@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
 import { isAiConfigured, summarizeArticle } from "@/lib/ai";
-import { clusterMembers, toContext } from "@/lib/retrieval";
+import { clusterMembers, isGroundable, toContext } from "@/lib/retrieval";
 import { contentHash } from "@/lib/ingest/text";
 
 export const dynamic = "force-dynamic";
@@ -52,8 +52,19 @@ export async function POST(req: NextRequest) {
   if (!article) {
     return NextResponse.json({ ok: false, error: "Article not found." }, { status: 404 });
   }
-  // Summarise the whole cluster so all reporting on the story is considered.
-  const members = await clusterMembers(article);
+  // Summarise the whole cluster so all reporting on the story is considered
+  // -- written reporting only: a video is never evidence.
+  const members = (await clusterMembers(article)).filter(isGroundable);
+  if (members.length === 0) {
+    return NextResponse.json({
+      ok: false,
+      videoOnly: true,
+      error:
+        body.data.language === "zh-HK"
+          ? "此報道只有影片版本。AI 摘要只會根據文字報道撰寫，請直接觀看影片。"
+          : "This story is only available as video. AI summaries are written from text reporting only, so please watch the video itself.",
+    });
+  }
   const hash = contentHash([
     "cluster",
     ...members.map((m) => m.contentHash).sort(),

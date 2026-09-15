@@ -90,6 +90,33 @@ describe("clustering + corroboration", () => {
     expect(ca === null || ca !== cb).toBe(true);
   });
 
+  it("does not let a video corroborate a written story, nor upgrade the video", async () => {
+    // RTHK's text feed and RTHK's own YouTube channel on the same event
+    // are one newsroom and one piece of evidence, not two.
+    const text = await insertArticle({
+      sourceId: "rthk-en-local",
+      originalTitle: "Kai Tak sports park hosts record crowd for rugby sevens final",
+      verificationStatus: "SINGLE_SOURCE",
+    });
+    const video = await insertArticle({
+      sourceId: "yt-rthk",
+      originalTitle: "Kai Tak sports park hosts record crowd for rugby sevens final",
+      verificationStatus: "SINGLE_SOURCE",
+      videoId: "kaitakxxxxx",
+      videoProvider: "youtube",
+    });
+    await clusterRecentArticles();
+    await applyCorroboration();
+    const db = await getDb();
+    const rows = await db.select().from(schema.articles).all();
+    const t = rows.find((r) => r.id === text)!;
+    const v = rows.find((r) => r.id === video)!;
+    expect(t.clusterId).not.toBeNull();
+    expect(t.clusterId).toBe(v.clusterId); // they are the same story...
+    expect(t.verificationStatus).toBe("SINGLE_SOURCE"); // ...but not corroboration
+    expect(v.verificationStatus).toBe("SINGLE_SOURCE");
+  });
+
   it("never marks a primary source down nor upgrades unclustered stories", async () => {
     const gov = await insertArticle({
       sourceId: "hkgov-en-top",

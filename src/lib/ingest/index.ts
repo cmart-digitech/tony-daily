@@ -17,6 +17,7 @@ import {
 } from "./text";
 import { getPreferences } from "@/lib/prefs";
 import { scoreArticle } from "@/lib/rank/score";
+import { isGroundable } from "@/lib/retrieval";
 
 const SOURCE_COOLDOWN_MS = 15 * 60 * 1000; // be polite to publishers
 const FETCH_TIMEOUT_MS = 20_000;
@@ -60,6 +61,12 @@ type FeedItem = {
   enclosure?: { url?: string; type?: string };
   mediaContent?: { $?: { url?: string; medium?: string } }[];
   mediaThumbnail?: { $?: { url?: string } };
+  /** YouTube Atom entries: the video id, and a nested media:group. */
+  videoId?: string;
+  mediaGroup?: {
+    "media:thumbnail"?: { $?: { url?: string } }[];
+    "media:description"?: string | string[];
+  };
 };
 
 const parser = new Parser<Record<string, unknown>, FeedItem>({
@@ -69,6 +76,10 @@ const parser = new Parser<Record<string, unknown>, FeedItem>({
     item: [
       ["media:content", "mediaContent", { keepArray: true }],
       ["media:thumbnail", "mediaThumbnail"],
+      // YouTube channel feeds are Atom: the id sits in yt:videoId and the
+      // thumbnail inside a nested media:group, not at item level.
+      ["yt:videoId", "videoId"],
+      ["media:group", "mediaGroup"],
     ],
   },
 });
@@ -88,6 +99,74 @@ function pickImage(item: FeedItem): string | null {
   }
   const m = item.content?.match(/<img[^>]+src=["']([^"']+)["']/i);
   return m ? m[1] : null;
+}
+
+/**
+ * YouTube entries carry their thumbnail and description inside a nested
+ * media:group rather than at item level. We take the id, the thumbnail and
+ * a cleaned description -- and nothing else. No file, no stream: the video
+ * is played through the publisher's own embed (docs/VIDEO_POLICY.md).
+ */
+function youtubeParts(item: FeedItem): {
+  videoId: string | null;
+  thumbnail: string | null;
+  description: string;
+} {
+  const videoId = item.videoId?.trim() || null;
+  const thumbnail = item.mediaGroup?.["media:thumbnail"]?.[0]?.$?.url ?? null;
+  const rawDesc = item.mediaGroup?.["media:description"];
+  const desc = Array.isArray(rawDesc) ? rawDesc[0] ?? "" : rawDesc ?? "";
+  return { videoId, thumbnail, description: cleanVideoDescription(desc) };
+}
+
+/**
+ * A channel's description is promotional copy with a boilerplate footer --
+ * a rule of dashes, then "follow us" links. Keep the part that describes
+ * the story and drop the marketing, so search indexes something useful.
+ */
+export function cleanVideoDescription(raw: string): string {
+  const boilerplate = new RegExp(
+    [
+      String.raw`\n?-{6,}\n?`, // the rule of dashes channels use as a divider
+      String.raw`\n(?=https?://)`, // a bare link starting its own line
+      String.raw`\n(?=(?:Facebook|Instagram|Twitter|X|YouTube|網頁|訂閱)\s*[:：])`,
+    ].join("|"),
+  );
+  const cut = raw.split(boilerplate)[0] ?? "";
+  return cut
+    .replace(/#\S+/g, "") // trailing hashtag block
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .slice(0, 500);
+}
+
+/**
+ * A channel feed lists its latest 15 uploads whatever their age, so a
+ * channel that posts weekly -- or has gone quiet -- hands over months-old
+ * clips that would arrive looking new. Articles carry no such risk: a news
+ * RSS feed only ever lists recent items. A week keeps the architecture
+ * channels, which post every few days, and drops everything stale.
+ */
+export const VIDEO_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function isTooOldForVideo(publishedAt: number | null, now = Date.now()): boolean {
+  // Every YouTube entry is dated; one that is not cannot show it is current.
+  return publishedAt == null || now - publishedAt > VIDEO_MAX_AGE_MS;
+}
+
+/**
+ * The text a story is classified by. For video this is the title alone: a
+ * channel description is promotional copy (docs/VIDEO_POLICY.md), and in
+ * the 15 Sept audit it pulled 31 of 250 videos onto the wrong beat -- a
+ * New York Fashion Week clip into Infrastructure, architecture tours and a
+ * bank CEO interview into Property.
+ */
+export function classifiableText(
+  title: string,
+  excerpt: string | null,
+  source: SourceConfig,
+): string {
+  return source.type === "youtube" ? title : `${title} ${excerpt ?? ""}`;
 }
 
 async function fetchWithRetry(source: SourceConfig, attempts = 2) {
@@ -122,6 +201,8 @@ interface NormalisedItem {
   category: string;
   region: string;
   entities: ReturnType<typeof extractEntities>;
+  videoId: string | null;
+  videoProvider: string | null;
 }
 
 /**
@@ -146,20 +227,29 @@ async function ingestSource(source: SourceConfig): Promise<IngestResult> {
       if (seenInFeed.has(canonical)) continue;
       seenInFeed.add(canonical);
       const title = stripHtml(rawTitle);
-      const excerpt = stripHtml(item.contentSnippet ?? item.content ?? "").slice(0, 500);
-      const classifiable = `${title} ${excerpt}`;
+      const video = source.type === "youtube" ? youtubeParts(item) : null;
+      // A video with no id is not embeddable, so it is not usable.
+      if (source.type === "youtube" && !video?.videoId) continue;
       const publishedRaw = item.isoDate ?? item.pubDate;
+      const publishedAt = publishedRaw ? Date.parse(publishedRaw) || null : null;
+      if (video && isTooOldForVideo(publishedAt)) continue;
+      const excerpt =
+        video?.description ||
+        stripHtml(item.contentSnippet ?? item.content ?? "").slice(0, 500);
+      const classifiable = classifiableText(title, excerpt, source);
       normalised.push({
         canonicalUrl: canonical,
         title,
         hash: contentHash([source.id, title, canonical]),
         excerpt,
-        publishedAt: publishedRaw ? Date.parse(publishedRaw) || null : null,
-        imageUrl: pickImage(item),
+        publishedAt,
+        imageUrl: video?.thumbnail ?? pickImage(item),
         author: item.creator ?? null,
         category: classifyCategory(classifiable, source),
         region: classifyRegion(classifiable, source),
         entities: extractEntities(classifiable),
+        videoId: video?.videoId ?? null,
+        videoProvider: video?.videoId ? "youtube" : null,
       });
     }
 
@@ -211,6 +301,8 @@ async function ingestSource(source: SourceConfig): Promise<IngestResult> {
               verificationStatus: source.primary ? "PRIMARY_VERIFIED" : "SINGLE_SOURCE",
               category: n.category,
               region: n.region,
+              videoId: n.videoId,
+              videoProvider: n.videoProvider,
             })),
           )
           .run();
@@ -423,7 +515,7 @@ async function reclassify(all: boolean): Promise<number> {
   for (const a of recent) {
     const source = sourceById.get(a.sourceId);
     if (!source) continue;
-    const text = `${a.originalTitle} ${a.excerpt ?? ""}`;
+    const text = classifiableText(a.originalTitle, a.excerpt, source);
     const category = classifyCategory(text, source);
     const region = classifyRegion(text, source);
     if (category === a.category && region === a.region) continue;
@@ -568,9 +660,15 @@ export async function applyCorroboration() {
   }
   const upgradeIds: number[] = [];
   for (const [, articles] of byCluster) {
-    const sources = new Set(articles.map((a) => a.sourceId));
+    // Only written reporting corroborates, and only written reporting is
+    // upgraded. A video is not evidence (docs/VIDEO_POLICY.md) -- and RTHK's
+    // YouTube channel clustering with RTHK's own text feed would otherwise
+    // mark the article CORROBORATED on the strength of its own newsroom.
+    // The status is shown to the AI with every source, so this matters.
+    const written = articles.filter(isGroundable);
+    const sources = new Set(written.map((a) => a.sourceId));
     if (sources.size >= 2) {
-      for (const a of articles) {
+      for (const a of written) {
         if (a.verificationStatus === "SINGLE_SOURCE") upgradeIds.push(a.id);
       }
     }
@@ -616,7 +714,8 @@ export async function rescoreRecentArticles() {
   for (const a of recent) {
     if (a.clusterId == null) continue;
     if (!clusterSources.has(a.clusterId)) clusterSources.set(a.clusterId, new Set());
-    clusterSources.get(a.clusterId)!.add(a.sourceId);
+    // Corroboration is counted from written reporting only (as above).
+    if (isGroundable(a)) clusterSources.get(a.clusterId)!.add(a.sourceId);
     const t = a.publishedAt ?? a.fetchedAt;
     const prev = clusterEarliest.get(a.clusterId);
     if (prev === undefined || t < prev) clusterEarliest.set(a.clusterId, t);
