@@ -88,22 +88,25 @@ it stands down for exactly as long as it asked, and the other carries the work
 
 ---
 
-## Phase 3 — planned
+## Phase 3 — video live since 15 September 2026, the rest planned
 
-Detail and reasoning: [PHASE_3_PLAN.md](PHASE_3_PLAN.md)
+Detail and reasoning: [PHASE_3_PLAN.md](PHASE_3_PLAN.md) ·
+[VIDEO_POLICY.md](VIDEO_POLICY.md)
 
-**Video news** *(headline feature)*
-Hong Kong and international — RTHK, TVB, Now, HK01, SCMP · BBC, Reuters,
-Bloomberg · Dezeen, ArchDaily
-A VIDEO section, plus video cards ranked inside the existing grids by the
-same weights — never promoted for being video
+**Video news** *(live)*
+Nine verified channels, Hong Kong and international — RTHK, TVB, Now
+Finance, SCMP · BBC, Reuters, Bloomberg · Dezeen, ArchDaily
+A VIDEO section shelved Hong Kong · International · Architecture & Design,
+newest first, three per channel, plus a quiet video mark on cards elsewhere
 One event, one story: a video and a written report of the same news link as
 two renditions, not two cards
 Played through the publisher's own embed, never re-hosted — metadata only,
 nothing downloaded
 Click-to-load: nothing contacts Google until you press play
+Never evidence: video is shown, browsed and searched, but never used as a
+source for an AI answer, and never corroborates a written story
 
-**Revision tracking**
+**Revision tracking** *(planned)*
 News sites quietly change headlines and figures after publishing and tell
 nobody
 The app already sees every edit on its 30-minute refresh — it currently
@@ -138,6 +141,37 @@ authority earned from track record rather than assumed
 
 **Deliberately excluded** — comments, social feeds, sentiment scores,
 engagement metrics, price prediction
+
+---
+
+## Phase 4 — planned
+
+Detail and reasoning: [PHASE_4_PLAN.md](PHASE_4_PLAN.md)
+
+**Dale** — the assistant you talk to, named after the paper itself
+
+**A voice worth listening to** *(headline feature)*
+A real neural voice instead of the computer's built-in one, with the browser
+voice as a free fallback and every line cached so repeats cost nothing
+
+**A conversation, not a button**
+Hold to talk or leave it listening; it answers in two or three sentences,
+starts speaking in about a second, and stops the moment you speak
+
+**English first**, switching to Cantonese or bilingual when told
+
+**Everywhere** — desk browser, tablet and phone, each saying plainly what it
+can do there
+
+**Hands** — small spoken actions: add to the watchlist, save a story, set an
+alert; every change confirmed aloud first, and written down afterwards
+
+**Wake word and a morning word** — "Dale", recognised on the device itself,
+nothing recorded before it; a good-morning offer of the brief, never an
+interruption
+
+**Never** — cloned voices, stored recordings, irreversible actions, or any
+pretence of being a person
 
 ---
 
