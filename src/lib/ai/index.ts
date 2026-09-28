@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getSource } from "@/lib/sources/registry";
+import { spokenAnswerRules, type DaleLanguage } from "./persona";
 import type { Quote } from "@/lib/market/types";
 import {
   AiNotConfiguredError,
@@ -279,8 +280,10 @@ export async function answerQuestion(options: {
   history: { role: "user" | "assistant"; content: string }[];
   /** Explicit user-saved preferences — context, never evidence. */
   memories?: string[];
+  /** Dale is going to say this out loud: shape it for the ear. */
+  spoken?: DaleLanguage;
 }): Promise<{ text: string; citations: Citation[] }> {
-  const { question, articles, quotes, history, memories } = options;
+  const { question, articles, quotes, history, memories, spoken } = options;
   const { block, citations } = buildSourceBlock(articles);
 
   const memoryBlock = memories?.length
@@ -302,7 +305,7 @@ export async function answerQuestion(options: {
         .join("\n")
     : "No market data available for this question.";
 
-  const user = `INDEXED NEWS SOURCES (the only news you may use):
+  const writtenUser = `INDEXED NEWS SOURCES (the only news you may use):
 
 ${block || "No relevant articles found in the currently connected sources."}
 
@@ -320,6 +323,13 @@ HOW TO ANSWER
 - Write flowing prose in complete sentences. No Markdown, no headings, no
   bullet characters, no bold. Do not end mid-sentence.`;
 
+  // Spoken delivery replaces the written answer's shape -- including its
+  // citation markers, which a listener cannot hear. The citations are still
+  // returned, and the panel still shows them on screen beside the answer.
+  const user = spoken ? `${writtenUser}
+
+${spokenAnswerRules(spoken)}` : writtenUser;
+
   const text = await callModel({
     system: GROUNDING_RULES,
     messages: [
@@ -327,7 +337,10 @@ HOW TO ANSWER
       { role: "user" as const, content: user },
     ],
     // Generous, because some models spend part of the budget on internal
-    // reasoning and would otherwise return a truncated answer.
+    // reasoning and would otherwise return a truncated answer. A spoken
+    // answer is two or three sentences, but the budget stays large: the
+    // reasoning happens either way, and a clipped sentence is worse aloud
+    // than on screen.
     maxTokens: 3000,
   });
 

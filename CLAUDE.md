@@ -95,6 +95,15 @@ Personal history, memories and documents sit behind authenticated access.
 Never silently build a profile: memory is written only through the explicit
 memories API, and Tony can inspect, edit and delete all of it.
 
+## Assistant rule (Phase 4)
+
+Dale is the app's spoken voice, not a second brain: a spoken question takes
+the same grounded path as a typed one, and the same refusals apply. Spoken
+answers are short and drop citation markers for the ear only — the written
+answer keeps them and keeps its sources on screen. Dale never claims to be
+human, never acts irreversibly, and confirms every write aloud before making
+it. Synthesised speech is never passed off as a real person's voice.
+
 ## Voice rule (Phase 2)
 
 Speech input passes through exactly the same grounded retrieval pipeline as

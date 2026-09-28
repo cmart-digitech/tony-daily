@@ -17,6 +17,8 @@ const LIMIT = 15; // per minute
 const BodySchema = z.object({
   message: z.string().min(1).max(4000),
   conversationId: z.number().nullish(),
+  /** Dale will speak the answer: shape it for the ear (src/lib/ai/persona.ts). */
+  spoken: z.enum(["en", "zh-HK", "both"]).nullish(),
 });
 
 export async function POST(req: NextRequest) {
@@ -124,6 +126,7 @@ export async function POST(req: NextRequest) {
       quotes,
       history,
       memories,
+      spoken: body.data.spoken ?? undefined,
     });
     const assistantMsg = await db
       .insert(schema.chatMessages)

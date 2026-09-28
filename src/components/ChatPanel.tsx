@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import FormattedText from "./FormattedText";
 import ListenButton, { speechLang } from "./ListenButton";
 import MicButton from "./MicButton";
+import DaleBar from "./DaleBar";
+import type { DaleLanguage } from "@/lib/ai/persona";
 
 interface Citation {
   n: number;
@@ -131,9 +133,14 @@ export default function ChatPanel({
     searchTimer.current = setTimeout(() => loadConversations(q, showArchived), 300);
   };
 
-  const send = async (text?: string) => {
+  /**
+   * One path for every question, typed or spoken. `spoken` only changes the
+   * shape of the answer (src/lib/ai/persona.ts); retrieval, grounding and
+   * citations are identical. Returns the answer so Dale can say it.
+   */
+  const send = async (text?: string, spoken?: DaleLanguage): Promise<string | null> => {
     const message = (text ?? input).trim();
-    if (!message || busy) return;
+    if (!message || busy) return null;
     setInput("");
     setError(null);
     setMessages((m) => [...m, { role: "user", content: message }]);
@@ -142,7 +149,7 @@ export default function ChatPanel({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, conversationId }),
+        body: JSON.stringify({ message, conversationId, spoken: spoken ?? null }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -152,11 +159,13 @@ export default function ChatPanel({
           { role: "assistant", content: data.text, citations: data.citations },
         ]);
         loadConversations(librarySearch, showArchived);
-      } else {
-        setError(data.error ?? "Something went wrong.");
+        return data.text as string;
       }
+      setError(data.error ?? "Something went wrong.");
+      return null;
     } catch {
       setError("Something went wrong.");
+      return null;
     } finally {
       setBusy(false);
     }
@@ -319,7 +328,7 @@ export default function ChatPanel({
                 <button
                   key={s}
                   type="button"
-                  onClick={() => send(s)}
+                  onClick={() => void send(s)}
                   className="rounded-full border border-line-2 px-3.5 py-1.5 text-sm text-ink-2 transition-colors hover:border-accent hover:text-accent"
                 >
                   {s}
@@ -384,10 +393,16 @@ export default function ChatPanel({
           <div ref={bottomRef} />
         </div>
 
+        <DaleBar
+          disabled={busy}
+          onTranscript={(text) => setInput(text)}
+          onAsk={(question, language) => send(question, language)}
+        />
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            send();
+            void send();
           }}
           className="flex items-center gap-2 border-t border-line pt-4"
         >

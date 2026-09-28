@@ -51,10 +51,37 @@ scripts into short CJK-aware segments. A server voice is a new
 implementation of an interface we have, not a rewrite.
 
 **Free neural Cantonese is scarce.** Edge's `zh-HK` Natural voices are the
-best free option found, and they are client-side. Server free tiers (Gemini
-TTS, Groq's Orpheus preview) are English-first; their Cantonese quality and
-free-tier limits are **unverified and must be measured before anything is
-committed**, exactly as the video channels were.
+best free option found, and they are client-side.
+
+### Measured on the live keys, 29 September 2026
+
+Before writing any code, both server voices were called with the project's
+own keys.
+
+| Finding | Number |
+|---|---|
+| Gemini TTS free tier | **10 requests per day, per model** (`GenerateRequestsPerDayPerProjectPerModel-FreeTier=10`) |
+| Gemini TTS latency | 2.2-3.9s for one short sentence |
+| Gemini TTS output | `audio/wav`, ~130KB for 2.8s; English and Chinese both spoken |
+| Groq Orpheus | refused: the model needs its terms accepted in the Groq console, and it is English-only |
+| Groq Whisper (speech-to-text) | works today on the same key |
+
+**This overturns the assumed design.** A server voice cannot carry a
+conversation: ten requests a day is roughly four exchanges, and three
+seconds to the first sound is twice the latency target. So:
+
+- **The browser voice is Dale's live voice**, not the fallback. It is free,
+  unlimited and immediate, and Edge's Natural voices -- English and `zh-HK`
+  alike -- are good.
+- **A server voice is a garnish, not the engine**: reserved for a handful of
+  cached, high-value pieces a day, such as the morning briefing, where one
+  generation is replayed by everyone. It stays behind the capacity gate and
+  a hard daily counter.
+- **Groq Orpheus is worth one click to evaluate** (terms acceptance is an
+  account action). If its free limits are generous it becomes the English
+  live voice, with the browser voice still carrying Cantonese.
+- **Groq Whisper is the speech-to-text fallback** for devices where the
+  browser's own recogniser is unreliable, iPhone Safari especially.
 
 ---
 
@@ -67,12 +94,14 @@ The MVP. One loop, done properly.
 A provider chain with failover and cooling, mirroring
 `src/lib/ai/providers.ts`:
 
-1. **Server neural voice** — best quality, identical on every device, plays
-   as ordinary audio so iOS keeps working. Spends free quota.
-2. **Browser neural voice** — Edge/Chrome "Natural"/"Online" voices. Free,
-   instant, good.
-3. **Browser local voice** — last resort. Labelled honestly in settings as
-   the basic voice, never presented as Dale's real voice.
+1. **Browser neural voice** — Edge/Chrome "Natural"/"Online" voices, and
+   Apple's premium voices on iOS. Free, unlimited, immediate. Dale's
+   everyday voice, in both languages.
+2. **Server neural voice** — better and identical everywhere, but rationed:
+   used only for cached set pieces (the daily briefing) and only while the
+   daily allowance lasts. Never for live conversation.
+3. **Browser local voice** — last resort where no neural voice exists.
+   Labelled honestly in settings as the basic voice.
 
 Every spoken line is **cached by content hash + voice + language**, the same
 pattern as summaries, so repeats cost nothing. A day's audio briefing is
@@ -101,9 +130,9 @@ tap / hold / wake → listening → transcript shown → grounded answer streams
 
 | Device | Listening | Speaking |
 |---|---|---|
-| Desktop Chrome/Edge | Hold-to-talk or conversation mode | Server or Edge neural |
+| Desktop Chrome/Edge | Hold-to-talk or conversation mode | Edge/Chrome neural |
 | Android Chrome | Same | Same |
-| iPad / iPhone Safari | Tap per turn (Apple's rule) | Server voice, after one unlocking tap |
+| iPad / iPhone Safari | Tap per turn (Apple's rule) | Apple voices, spoken inside that same tap |
 
 Dale states its mode ("tap to talk on this device") instead of appearing
 broken.

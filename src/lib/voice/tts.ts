@@ -129,6 +129,10 @@ export function speechText(input: string, lang = "en"): string {
   let t = input;
   // Stray markdown that slipped through, and symbols read aloud as words.
   t = t.replace(/[*_`#]+/g, "");
+  // Citation markers belong on screen, not in the ear: "[2]" is read as
+  // "bracket two" by some engines and as silence by others. The written
+  // answer keeps them, and keeps its source list with them.
+  t = t.replace(/\s?\[\d+(?:\s*,\s*\d+)*\]/g, "");
   t = t.replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
   // Dashes and ellipses become pauses rather than spoken characters.
   t = t.replace(/\s*[—–]\s*/g, ", ").replace(/\.{3,}|…/g, ", ");
@@ -273,3 +277,29 @@ export class BrowserTtsProvider implements TextToSpeechProvider {
 }
 
 export const ttsProvider: TextToSpeechProvider = new BrowserTtsProvider();
+
+/**
+ * Split an answer into segments by script, so a bilingual reply is spoken
+ * by the right voice throughout.
+ *
+ * Dale's bilingual mode answers in English and then in Chinese. Handed to
+ * the synthesiser as one block under one language, half of it comes out as
+ * noise — an English engine reading Chinese characters, or the reverse.
+ * Splitting on sentence ends and grouping consecutive same-script sentences
+ * keeps each part with its own voice, and keeps the number of utterances
+ * small enough that the pauses between them are not audible.
+ */
+export function toSegments(text: string, speaker?: string): TtsSegment[] {
+  const pieces = text
+    .split(/(?<=[.!?。！？；;])\s*|\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const segments: TtsSegment[] = [];
+  for (const piece of pieces) {
+    const lang = /[㐀-鿿]/.test(piece) ? "zh-HK" : "en-US";
+    const last = segments[segments.length - 1];
+    if (last && last.lang === lang) last.text += ` ${piece}`;
+    else segments.push({ text: piece, lang, speaker });
+  }
+  return segments;
+}

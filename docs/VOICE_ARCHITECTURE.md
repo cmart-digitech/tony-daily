@@ -50,3 +50,33 @@ honest equivalent of ±15 s for on-device synthesis.
   that matters enough to fund.
 - Mixed-language *recognition* within one utterance is browser-dependent;
   the language toggle (EN/粵) selects the recognition model explicitly.
+
+## Dale — the talking loop (Phase 4)
+
+Dale is a way of speaking, not a second brain. A spoken question takes the
+same path as a typed one; only the shape of the answer changes.
+
+```
+press → listening → transcript (shown, editable) → /api/chat with spoken:<lang>
+→ grounded answer + citations → citation markers stripped for the ear
+→ spoken segment by segment → idle, or listening again in hands-free mode
+```
+
+- **`src/lib/voice/session.ts`** — four states (idle, listening, thinking,
+  speaking) as a pure transition function, so the loop can be tested without
+  a browser. Barge-in returns to listening; stop and failure always return
+  to idle, so the microphone is never left open.
+- **`src/lib/ai/persona.ts`** — `spokenAnswerRules()` (two or three
+  sentences, sixty words, publisher named aloud, no Markdown, never claims
+  to be human) and `detectLanguageCommand()`, which tells "speak Cantonese"
+  apart from a question that merely mentions Cantonese.
+- **`src/components/DaleBar.tsx`** — the control. Shows state, language and
+  hands-free, and hides hands-free on iOS, where Apple requires a gesture
+  per turn.
+- **Citations**: the written answer keeps its `[n]` markers and its source
+  list; `speechText()` removes them before speaking, because a listener
+  cannot hear a marker.
+- **The voice itself is the browser's.** Measured 29 Sept 2026: Gemini's
+  server voice allows ten requests per day per model on the free tier and
+  takes 2-4s per sentence, so it cannot carry a conversation. See
+  docs/PHASE_4_PLAN.md.
